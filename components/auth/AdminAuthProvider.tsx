@@ -47,9 +47,34 @@ function formatAuthError(error: unknown): AuthResult {
     case "auth/wrong-password":
     case "auth/user-not-found":
       return { ok: false, code, message: "The email or password is incorrect." };
+    case "auth/unauthorized-domain":
+      return {
+        ok: false,
+        code,
+        message:
+          "This domain is not authorized in Firebase Authentication for Google sign-in.",
+      };
+    case "auth/operation-not-allowed":
+      return {
+        ok: false,
+        code,
+        message: "Google sign-in is not enabled for this Firebase project.",
+      };
     case "auth/popup-closed-by-user":
     case "auth/cancelled-popup-request":
       return { ok: false, code, message: "The sign-in popup was closed." };
+    case "auth/popup-blocked":
+      return {
+        ok: false,
+        code,
+        message: "Your browser blocked the sign-in popup. Allow popups and try again.",
+      };
+    case "auth/network-request-failed":
+      return {
+        ok: false,
+        code,
+        message: "The network request failed while contacting Firebase Authentication.",
+      };
     case "auth/too-many-requests":
       return { ok: false, code, message: "Too many attempts. Wait a minute and try again." };
     default:
