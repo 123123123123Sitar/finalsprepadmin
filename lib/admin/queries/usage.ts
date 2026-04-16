@@ -1,4 +1,5 @@
 import { requireDb, collections } from "@/lib/admin/firestore";
+import { withFirestoreFallback } from "@/lib/admin/query-safety";
 import type { UsageTimeseriesPoint } from "@/lib/admin/types";
 import { daysAgo, toDateKey } from "@/lib/admin/utils";
 import { estimateCostUsd } from "@/lib/admin/usage-costs";
@@ -39,11 +40,17 @@ export async function getUsageTimeseries(days = 30): Promise<UsageTimeseriesPoin
 export async function getHeavyUsers(limit = 25) {
   const db = requireDb();
   const since = daysAgo(30);
-  const aiHistory = await db
-    .collectionGroup("aiHistory")
-    .where("createdAt", ">=", since)
-    .limit(5000)
-    .get();
+  const aiHistory = await withFirestoreFallback(
+    "usage.heavyUsers.aiHistory",
+    null,
+    () =>
+      db
+        .collectionGroup("aiHistory")
+        .where("createdAt", ">=", since)
+        .limit(5000)
+        .get()
+  );
+  if (!aiHistory) return [];
 
   const byUser = new Map<
     string,

@@ -2,6 +2,10 @@ import type { ListUsersResult, UserRecord } from "firebase-admin/auth";
 import { getAdminAuth } from "@/lib/firebase-admin";
 import { requireDb, collections } from "@/lib/admin/firestore";
 import { normalizeBillingInterval, normalizePlanTier } from "@/lib/admin/plans";
+import {
+  sortByNumericFieldDesc,
+  withFirestoreFallback,
+} from "@/lib/admin/query-safety";
 import type {
   AdminNote,
   AdminUserDetail,
@@ -123,11 +127,19 @@ async function getUsageSummaries(uids: string[]): Promise<Map<string, UserAiUsag
     })
   );
 
-  const collectionGroupSnap = await db
-    .collectionGroup("aiHistory")
-    .where("createdAt", ">=", since)
-    .limit(5000)
-    .get();
+  const collectionGroupSnap = await withFirestoreFallback(
+    "users.usageSummaries.aiHistory",
+    null,
+    () =>
+      db
+        .collectionGroup("aiHistory")
+        .where("createdAt", ">=", since)
+        .limit(5000)
+        .get()
+  );
+  if (!collectionGroupSnap) {
+    return result;
+  }
 
   for (const doc of collectionGroupSnap.docs) {
     const uid = doc.ref.parent.parent?.id;
@@ -283,13 +295,21 @@ async function queryTopLevelByUid<T>(
   orderField = "createdAt"
 ) {
   const db = requireDb();
-  const snap = await db
-    .collection(collectionName)
-    .where("targetUid", "==", uid)
-    .orderBy(orderField, "desc")
-    .limit(limit)
-    .get();
-  return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as T) }));
+  const snap = await withFirestoreFallback(
+    `${collectionName}.byTargetUid`,
+    null,
+    () =>
+      db
+        .collection(collectionName)
+        .where("targetUid", "==", uid)
+        .limit(Math.max(limit * 5, 50))
+        .get()
+  );
+  if (!snap) return [];
+  return sortByNumericFieldDesc(
+    snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as T) })),
+    orderField
+  ).slice(0, limit);
 }
 
 export async function getUserDetail(uid: string): Promise<AdminUserDetail> {
@@ -304,13 +324,24 @@ export async function getUserDetail(uid: string): Promise<AdminUserDetail> {
     getUserOverlays([uid]),
     getUsageSummaries([uid]),
     queryTopLevelByUid<AdminNote>(collections.adminNotes, uid, 20),
-    db
-      .collection(collections.manualCreditAdjustments)
-      .where("uid", "==", uid)
-      .orderBy("createdAt", "desc")
-      .limit(20)
-      .get()
-      .then((snap) => snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<ManualCreditAdjustment, "id">) }))),
+    withFirestoreFallback(
+      "users.manualCreditAdjustments",
+      [] as ManualCreditAdjustment[],
+      async () => {
+        const snap = await db
+          .collection(collections.manualCreditAdjustments)
+          .where("uid", "==", uid)
+          .limit(100)
+          .get();
+        return sortByNumericFieldDesc(
+          snap.docs.map((doc) => ({
+            id: doc.id,
+            ...(doc.data() as Omit<ManualCreditAdjustment, "id">),
+          })),
+          "createdAt"
+        ).slice(0, 20);
+      }
+    ),
   ]);
 
   const recentAiHistorySnap = await db
@@ -320,12 +351,24 @@ export async function getUserDetail(uid: string): Promise<AdminUserDetail> {
     .orderBy("createdAt", "desc")
     .limit(20)
     .get();
-  const recentEventsSnap = await db
-    .collection("events")
-    .where("uid", "==", uid)
-    .orderBy("at", "desc")
-    .limit(20)
-    .get();
+  const recentEvents = await withFirestoreFallback(
+    "users.recentEvents",
+    [] as Array<Record<string, unknown> & { id: string }>,
+    async () => {
+      const snap = await db
+        .collection("events")
+        .where("uid", "==", uid)
+        .limit(100)
+        .get();
+      return sortByNumericFieldDesc(
+        snap.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })),
+        "at"
+      ).slice(0, 20);
+    }
+  );
 
   return {
     auth: user,
@@ -349,10 +392,7 @@ export async function getUserDetail(uid: string): Promise<AdminUserDetail> {
       id: doc.id,
       ...doc.data(),
     })),
-    recentEvents: recentEventsSnap.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })),
+    recentEvents,
     notes,
     ledger,
   };

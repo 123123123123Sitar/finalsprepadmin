@@ -3,6 +3,7 @@ import { getStripeClient } from "@/lib/admin/stripe";
 import type { AdminOverviewMetrics, AppBillingProfile } from "@/lib/admin/types";
 import { countAllUsers } from "@/lib/admin/queries/users";
 import { isPaidPlan, normalizePlanTier } from "@/lib/admin/plans";
+import { withFirestoreFallback } from "@/lib/admin/query-safety";
 import { daysAgo, toDateKey } from "@/lib/admin/utils";
 import { contentSourceAvailable } from "@/lib/admin/content-health";
 
@@ -88,6 +89,17 @@ async function getFeatureUsage(days: number) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8)
     .map(([name, value]) => ({ name, value }));
+}
+
+async function getRecentSignups(days: number) {
+  const db = requireDb();
+  const snap = await db
+    .collection("events")
+    .where("at", ">=", daysAgo(days))
+    .limit(5000)
+    .get();
+
+  return snap.docs.filter((doc) => doc.data().kind === "signup").length;
 }
 
 async function getUsageWindow() {
@@ -213,12 +225,11 @@ export async function getOverviewMetrics(): Promise<AdminOverviewMetrics> {
   const proUsers = billingProfiles.filter((profile) => profile.plan === "pro").length;
   const premiumUsers = billingProfiles.filter((profile) => profile.plan === "hacker").length;
   const freeUsers = Math.max(totalUsers - totalPaidUsers, 0);
-  const recentSignups7dSnap = await db
-    .collection("events")
-    .where("kind", "==", "signup")
-    .where("at", ">=", daysAgo(7))
-    .limit(5000)
-    .get();
+  const recentSignups7d = await withFirestoreFallback(
+    "overview.recentSignups7d",
+    0,
+    () => getRecentSignups(7)
+  );
   const churnedSubscriptions30d = billingProfiles.filter(
     (profile) =>
       typeof profile.canceledAt === "number" && profile.canceledAt >= daysAgo(30) / 1000
@@ -243,7 +254,7 @@ export async function getOverviewMetrics(): Promise<AdminOverviewMetrics> {
     freeUsers,
     proUsers,
     premiumUsers,
-    recentSignups7d: recentSignups7dSnap.size,
+    recentSignups7d,
     freeToPaidConversionRate,
     churnedSubscriptions30d,
     totalTokensUsed30d: usageWindow.totalTokensUsed30d,
