@@ -182,7 +182,7 @@ export default async function AdminUsersPage({
               </thead>
               <tbody>
                 {filteredItems.map((user) => (
-                  <tr key={user.uid} className="rounded-2xl bg-white shadow-panel">
+                  <tr key={user.uid} className="admin-row rounded-2xl">
                     <td className="rounded-l-2xl border-y border-l border-line px-4 py-4 align-top">
                       <p className="font-medium text-ink">{user.name || "Unnamed user"}</p>
                       <p className="mt-1 text-sm text-body">{user.email || "no-email"}</p>

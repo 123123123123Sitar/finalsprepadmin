@@ -4,15 +4,21 @@ import { SectionCard } from "@/components/admin/SectionCard";
 import { SimpleBarChart } from "@/components/admin/SimpleBarChart";
 import { StatCard } from "@/components/admin/StatCard";
 import { getOverviewMetrics } from "@/lib/admin/queries/overview";
-import { getHeavyUsers, getUsageBreakdownByRoute, getUsageTimeseries } from "@/lib/admin/queries/usage";
+import {
+  getHeavyUsers,
+  getUsageBreakdownByModel,
+  getUsageBreakdownByRoute,
+  getUsageTimeseries,
+} from "@/lib/admin/queries/usage";
 import { formatNumber, formatPercent, formatUsd } from "@/lib/admin/utils";
 
 export default async function AdminUsagePage() {
-  const [overview, timeseries, heavyUsers, byRoute] = await Promise.all([
+  const [overview, timeseries, heavyUsers, byRoute, byModel] = await Promise.all([
     getOverviewMetrics(),
     getUsageTimeseries(30),
     getHeavyUsers(20),
     getUsageBreakdownByRoute(30),
+    getUsageBreakdownByModel(30),
   ]);
 
   const totalRequests = timeseries.reduce((sum, point) => sum + point.requests, 0);
@@ -71,7 +77,7 @@ export default async function AdminUsagePage() {
               </thead>
               <tbody>
                 {heavyUsers.map((user) => (
-                  <tr key={user.uid} className="bg-white shadow-panel">
+                  <tr key={user.uid} className="admin-row">
                     <td className="rounded-l-2xl border-y border-l border-line px-4 py-4 font-mono text-xs text-body">
                       {user.uid}
                     </td>
@@ -116,6 +122,40 @@ export default async function AdminUsagePage() {
         </SectionCard>
       </div>
 
+      <SectionCard
+        title="Model breakdown (30d)"
+        description="Tokens and cost per AI model derived from the per-user aiHistory collection. Use this to watch which model is burning the most budget."
+      >
+        {byModel.length === 0 ? (
+          <p className="text-sm text-body">No AI history in the last 30 days.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-separate border-spacing-y-3">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-[0.18em] text-mute">
+                  <th className="pb-2">Model</th>
+                  <th className="pb-2">Requests</th>
+                  <th className="pb-2">Tokens</th>
+                  <th className="pb-2">Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {byModel.map((row) => (
+                  <tr key={row.model} className="admin-row">
+                    <td className="rounded-l-2xl border-y border-l border-line px-4 py-4 font-mono text-xs text-body">
+                      {row.model}
+                    </td>
+                    <td className="border-y border-line px-4 py-4 text-sm text-body">{formatNumber(row.requests)}</td>
+                    <td className="border-y border-line px-4 py-4 text-sm text-body">{formatNumber(row.tokens)}</td>
+                    <td className="rounded-r-2xl border-y border-r border-line px-4 py-4 text-sm text-body">{formatUsd(row.costUsd)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SectionCard>
+
       <SectionCard title="Endpoint breakdown" description="Usage grouped by logical route or feature.">
         <div className="overflow-x-auto">
           <table className="min-w-full border-separate border-spacing-y-3">
@@ -129,7 +169,7 @@ export default async function AdminUsagePage() {
             </thead>
             <tbody>
               {byRoute.map((route) => (
-                <tr key={route.route} className="bg-white shadow-panel">
+                <tr key={route.route} className="admin-row">
                   <td className="rounded-l-2xl border-y border-l border-line px-4 py-4 font-mono text-xs text-body">
                     {route.route}
                   </td>

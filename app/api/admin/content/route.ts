@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireApiAdminContext } from "@/lib/admin/auth";
 import { getContentHealth } from "@/lib/admin/queries/content";
@@ -40,6 +41,8 @@ export async function POST(request: Request) {
     if (body.refresh !== false) {
       result.records = await refreshContentHealth(actor, body.reason);
     }
+    revalidatePath("/admin/content");
+    revalidatePath("/admin");
     return NextResponse.json({ ok: true, result });
   } catch (error) {
     return NextResponse.json(

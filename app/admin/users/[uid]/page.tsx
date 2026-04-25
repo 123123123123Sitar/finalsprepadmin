@@ -2,6 +2,7 @@ import { Badge } from "@/components/admin/Badge";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { SectionCard } from "@/components/admin/SectionCard";
 import { StatCard } from "@/components/admin/StatCard";
+import { ChatHistoryPullPanel } from "@/components/admin/ChatHistoryPullPanel";
 import { CopyButton } from "@/components/admin/CopyButton";
 import { UserActionConsole } from "@/components/admin/UserActionConsole";
 import { UserSupportTools } from "@/components/admin/UserSupportTools";
@@ -146,6 +147,11 @@ export default async function AdminUserDetailPage({
           uid={detail.auth.uid}
         />
       </div>
+
+      <ChatHistoryPullPanel
+        uid={detail.auth.uid}
+        userLabel={detail.auth.email || detail.auth.displayName || detail.auth.uid}
+      />
 
       <UserActionConsole
         canBillingWrite={hasPermission(context.roles, "billing.write")}

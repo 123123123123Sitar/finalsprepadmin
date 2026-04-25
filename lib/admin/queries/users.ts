@@ -17,7 +17,7 @@ import type {
   UserAiUsageSummary,
 } from "@/lib/admin/types";
 import { daysAgo } from "@/lib/admin/utils";
-import { estimateCostUsd } from "@/lib/admin/usage-costs";
+import { resolveEntryCostUsd } from "@/lib/admin/usage-costs";
 
 export type UserListQuery = {
   pageSize?: number;
@@ -112,20 +112,67 @@ async function getUserOverlays(uids: string[]) {
   return result;
 }
 
+function emptyUsageSummary(): UserAiUsageSummary {
+  return {
+    totalTokens: 0,
+    totalCostUsd: 0,
+    totalRequests: 0,
+    failedRequests: 0,
+    byKind: {},
+    byModel: {},
+  };
+}
+
+function applyUsageEntry(summary: UserAiUsageSummary, data: Record<string, unknown>) {
+  const tokens = Number((data as { tokens?: unknown }).tokens || 0);
+  const model =
+    typeof (data as { model?: unknown }).model === "string"
+      ? ((data as { model: string }).model)
+      : "unknown";
+  const kind =
+    typeof (data as { kind?: unknown }).kind === "string"
+      ? ((data as { kind: string }).kind)
+      : "unknown";
+  summary.totalTokens += tokens;
+  summary.totalRequests += 1;
+  summary.lastUsedAt = Math.max(
+    summary.lastUsedAt || 0,
+    Number((data as { createdAt?: unknown }).createdAt || 0)
+  );
+  summary.byKind[kind] = (summary.byKind[kind] || 0) + 1;
+  summary.byModel[model] = (summary.byModel[model] || 0) + 1;
+  summary.totalCostUsd += resolveEntryCostUsd(data as never);
+}
+
 async function getUsageSummaries(uids: string[]): Promise<Map<string, UserAiUsageSummary>> {
   const db = requireDb();
   const since = daysAgo(30);
   const result = new Map<string, UserAiUsageSummary>();
-  uids.forEach((uid) =>
-    result.set(uid, {
-      totalTokens: 0,
-      totalCostUsd: 0,
-      totalRequests: 0,
-      failedRequests: 0,
-      byKind: {},
-      byModel: {},
-    })
-  );
+  uids.forEach((uid) => result.set(uid, emptyUsageSummary()));
+  if (uids.length === 0) return result;
+
+  // Single-uid call (user detail): direct subcollection read. Avoids a full
+  // cross-user collection-group scan that would otherwise burn thousands of
+  // Firestore reads per page view.
+  if (uids.length === 1) {
+    const uid = uids[0];
+    const snap = await withFirestoreFallback(
+      "users.usageSummaries.aiHistory.direct",
+      null,
+      () =>
+        db
+          .collection("users")
+          .doc(uid)
+          .collection("aiHistory")
+          .where("createdAt", ">=", since)
+          .limit(5000)
+          .get()
+    );
+    if (!snap) return result;
+    const summary = result.get(uid)!;
+    for (const doc of snap.docs) applyUsageEntry(summary, doc.data());
+    return result;
+  }
 
   const collectionGroupSnap = await withFirestoreFallback(
     "users.usageSummaries.aiHistory",
@@ -137,33 +184,12 @@ async function getUsageSummaries(uids: string[]): Promise<Map<string, UserAiUsag
         .limit(5000)
         .get()
   );
-  if (!collectionGroupSnap) {
-    return result;
-  }
+  if (!collectionGroupSnap) return result;
 
   for (const doc of collectionGroupSnap.docs) {
     const uid = doc.ref.parent.parent?.id;
     if (!uid || !result.has(uid)) continue;
-    const current = result.get(uid)!;
-    const data = doc.data();
-    const tokens = Number(data.tokens || 0);
-    const model = typeof data.model === "string" ? data.model : "unknown";
-    const inputTokens =
-      typeof data.metadata?.inputTokens === "number" ? data.metadata.inputTokens : tokens;
-    const outputTokens =
-      typeof data.metadata?.outputTokens === "number" ? data.metadata.outputTokens : 0;
-
-    current.totalTokens += tokens;
-    current.totalRequests += 1;
-    current.lastUsedAt = Math.max(current.lastUsedAt || 0, Number(data.createdAt || 0));
-    current.byKind[String(data.kind || "unknown")] =
-      (current.byKind[String(data.kind || "unknown")] || 0) + 1;
-    current.byModel[model] = (current.byModel[model] || 0) + 1;
-    current.totalCostUsd += estimateCostUsd({
-      model,
-      inputTokens,
-      outputTokens,
-    });
+    applyUsageEntry(result.get(uid)!, doc.data());
   }
 
   return result;
@@ -235,15 +261,7 @@ function toListItem(
     stripeCustomerId: billing?.stripeCustomerId,
     stripeSubscriptionId: billing?.stripeSubscriptionId,
     tokenBalance: tokenBank?.balance ?? 0,
-    aiUsage:
-      usage ?? {
-        totalTokens: 0,
-        totalCostUsd: 0,
-        totalRequests: 0,
-        failedRequests: 0,
-        byKind: {},
-        byModel: {},
-      },
+    aiUsage: usage ?? emptyUsageSummary(),
     flags: defaultFlags(overlay),
     referralSource: overlay?.referralSource ?? null,
   };
@@ -379,15 +397,7 @@ export async function getUserDetail(uid: string): Promise<AdminUserDetail> {
       },
     tokenBank: tokenMap.get(uid) ?? { balance: 0 },
     overlay: overlayMap.get(uid) ?? { uid },
-    aiUsage:
-      usageMap.get(uid) ?? {
-        totalTokens: 0,
-        totalCostUsd: 0,
-        totalRequests: 0,
-        failedRequests: 0,
-        byKind: {},
-        byModel: {},
-      },
+    aiUsage: usageMap.get(uid) ?? emptyUsageSummary(),
     recentAiHistory: recentAiHistorySnap.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),

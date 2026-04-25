@@ -17,8 +17,9 @@ body {
 body {
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   background-image:
-    radial-gradient(circle at top left, rgba(251, 146, 60, 0.08), transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 1));
+    radial-gradient(circle at top left, rgba(251, 146, 60, 0.10), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.06), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 1));
 }
 
 a {
@@ -47,11 +48,14 @@ a {
 }
 
 .admin-input {
-  @apply w-full rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20;
+  @apply w-full rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none transition hover:border-slate-300 focus:border-accent focus:ring-2 focus:ring-accent/20;
 }
 
 .admin-select {
-  @apply admin-input;
+  @apply admin-input appearance-none cursor-pointer pr-9 bg-no-repeat;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20' fill='none' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='5 8 10 13 15 8'/></svg>");
+  background-position: right 0.65rem center;
+  background-size: 1rem 1rem;
 }
 
 .admin-textarea {
@@ -59,17 +63,44 @@ a {
 }
 
 .admin-button {
-  @apply inline-flex items-center justify-center rounded-xl bg-ink px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex items-center justify-center rounded-xl bg-ink px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .admin-button-secondary {
-  @apply inline-flex items-center justify-center rounded-xl border border-line bg-white px-4 py-2 text-sm font-medium text-ink transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex items-center justify-center rounded-xl border border-line bg-white px-4 py-2 text-sm font-medium text-ink transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .admin-button-danger {
-  @apply inline-flex items-center justify-center rounded-xl bg-danger px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex items-center justify-center rounded-xl bg-danger px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+.admin-button-accent {
+  @apply inline-flex items-center justify-center rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-orange-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .badge {
   @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium;
+}
+
+.admin-row {
+  @apply bg-white shadow-panel transition hover:shadow-md;
+}
+
+.admin-toast-enter {
+  animation: admin-toast-in 180ms ease-out both;
+}
+
+@keyframes admin-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.admin-skeleton {
+  @apply animate-pulse rounded-2xl bg-slate-100;
 }

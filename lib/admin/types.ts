@@ -150,6 +150,17 @@ export type AdminUserDetail = {
   ledger: Array<ManualCreditAdjustment>;
 };
 
+export type PlanBreakdown = {
+  learner: number;
+  pro: number;
+  hacker: number;
+};
+
+export type SignupTrendPoint = {
+  dateKey: string;
+  signups: number;
+};
+
 export type AdminOverviewMetrics = {
   totalUsers: number;
   dau: number;
@@ -159,13 +170,20 @@ export type AdminOverviewMetrics = {
   freeUsers: number;
   proUsers: number;
   premiumUsers: number;
+  planDistribution: PlanBreakdown;
+  activeByPlan7d: PlanBreakdown;
+  paidCohorts: Array<{ name: string; value: number }>;
+  signupTrend14d: SignupTrendPoint[];
   recentSignups7d: number;
+  recentSignups30d: number;
   freeToPaidConversionRate: number;
   churnedSubscriptions30d: number;
   totalTokensUsed30d: number;
   totalMessages30d: number;
   totalAiRequests30d: number;
   estimatedAiCost30d: number;
+  arpuPaid: number;
+  costPerActiveMau: number;
   revenue: {
     mrr: number;
     arr: number;

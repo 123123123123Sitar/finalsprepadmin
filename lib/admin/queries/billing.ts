@@ -1,12 +1,27 @@
+import type { QuerySnapshot } from "firebase-admin/firestore";
 import { requireDb } from "@/lib/admin/firestore";
-import { normalizePlanTier } from "@/lib/admin/plans";
+import { normalizePlanTier, type PlanTier } from "@/lib/admin/plans";
+import { withFirestoreFallback } from "@/lib/admin/query-safety";
 import { getStripeClient } from "@/lib/admin/stripe";
 import type { BillingRiskItem } from "@/lib/admin/types";
 import { daysAgo } from "@/lib/admin/utils";
 
+const PLAN_TIERS: PlanTier[] = ["learner", "pro", "hacker"];
+
 export async function getBillingRiskItems(): Promise<BillingRiskItem[]> {
   const db = requireDb();
-  const snap = await db.collectionGroup("profile").limit(5000).get();
+  const filtered = await withFirestoreFallback<QuerySnapshot | null>(
+    "billing.profilesFiltered",
+    null,
+    () =>
+      db
+        .collectionGroup("profile")
+        .where("plan", "in", PLAN_TIERS)
+        .limit(5000)
+        .get()
+  );
+  const snap =
+    filtered ?? (await db.collectionGroup("profile").limit(5000).get());
   const items: BillingRiskItem[] = [];
 
   for (const doc of snap.docs) {

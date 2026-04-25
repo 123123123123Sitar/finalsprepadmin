@@ -2,7 +2,7 @@ import { requireDb, collections } from "@/lib/admin/firestore";
 import { withFirestoreFallback } from "@/lib/admin/query-safety";
 import type { UsageTimeseriesPoint } from "@/lib/admin/types";
 import { daysAgo, toDateKey } from "@/lib/admin/utils";
-import { estimateCostUsd } from "@/lib/admin/usage-costs";
+import { resolveEntryCostUsd } from "@/lib/admin/usage-costs";
 
 export async function getUsageTimeseries(days = 30): Promise<UsageTimeseriesPoint[]> {
   const db = requireDb();
@@ -54,35 +54,40 @@ export async function getHeavyUsers(limit = 25) {
 
   const byUser = new Map<
     string,
-    { uid: string; tokens: number; requests: number; costUsd: number }
+    {
+      uid: string;
+      tokens: number;
+      requests: number;
+      costUsd: number;
+      byModel: Record<string, number>;
+      byKind: Record<string, number>;
+      lastUsedAt: number;
+    }
   >();
   for (const doc of aiHistory.docs) {
     const uid = doc.ref.parent.parent?.id;
     if (!uid) continue;
     const data = doc.data();
-    const inputTokens =
-      typeof data.metadata?.inputTokens === "number"
-        ? data.metadata.inputTokens
-        : Number(data.tokens || 0);
-    const outputTokens =
-      typeof data.metadata?.outputTokens === "number"
-        ? data.metadata.outputTokens
-        : 0;
-    const current = byUser.get(uid) ?? {
-      uid,
-      tokens: 0,
-      requests: 0,
-      costUsd: 0,
-    };
-    current.tokens += Number(data.tokens || 0);
+    const current =
+      byUser.get(uid) ??
+      {
+        uid,
+        tokens: 0,
+        requests: 0,
+        costUsd: 0,
+        byModel: {} as Record<string, number>,
+        byKind: {} as Record<string, number>,
+        lastUsedAt: 0,
+      };
+    const tokens = Number(data.tokens || 0);
+    const model = typeof data.model === "string" ? data.model : "unknown";
+    const kind = typeof data.kind === "string" ? data.kind : "unknown";
+    current.tokens += tokens;
     current.requests += 1;
-    current.costUsd +=
-      Number(data.metadata?.costUsd || 0) ||
-      estimateCostUsd({
-        model: typeof data.model === "string" ? data.model : undefined,
-        inputTokens,
-        outputTokens,
-      });
+    current.costUsd += resolveEntryCostUsd(data);
+    current.byModel[model] = (current.byModel[model] || 0) + 1;
+    current.byKind[kind] = (current.byKind[kind] || 0) + 1;
+    current.lastUsedAt = Math.max(current.lastUsedAt, Number(data.createdAt || 0));
     byUser.set(uid, current);
   }
 
@@ -115,4 +120,39 @@ export async function getUsageBreakdownByRoute(days = 30) {
   }
 
   return [...byRoute.values()].sort((a, b) => b.tokens - a.tokens);
+}
+
+// Derived from aiHistory collection-group (30d window already fetched once
+// elsewhere). Call sites should share their snapshot when possible to avoid
+// the 5k-read cost of repeating this query.
+export async function getUsageBreakdownByModel(days = 30) {
+  const db = requireDb();
+  const since = daysAgo(days);
+  const snap = await withFirestoreFallback(
+    "usage.breakdownByModel.aiHistory",
+    null,
+    () =>
+      db
+        .collectionGroup("aiHistory")
+        .where("createdAt", ">=", since)
+        .limit(5000)
+        .get()
+  );
+  if (!snap) return [];
+
+  const byModel = new Map<
+    string,
+    { model: string; requests: number; tokens: number; costUsd: number }
+  >();
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    const model = typeof data.model === "string" ? data.model : "unknown";
+    const current =
+      byModel.get(model) ?? { model, requests: 0, tokens: 0, costUsd: 0 };
+    current.requests += 1;
+    current.tokens += Number(data.tokens || 0);
+    current.costUsd += resolveEntryCostUsd(data);
+    byModel.set(model, current);
+  }
+  return [...byModel.values()].sort((a, b) => b.tokens - a.tokens);
 }

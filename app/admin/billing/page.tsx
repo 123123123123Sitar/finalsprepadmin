@@ -50,7 +50,7 @@ export default async function AdminBillingPage() {
               </thead>
               <tbody>
                 {riskItems.map((item) => (
-                  <tr key={item.uid} className="bg-white shadow-panel">
+                  <tr key={item.uid} className="admin-row">
                     <td className="rounded-l-2xl border-y border-l border-line px-4 py-4">
                       <p className="font-medium text-ink">{item.email || "Unknown email"}</p>
                       <p className="mt-1 font-mono text-xs text-mute">{item.uid}</p>
@@ -103,7 +103,7 @@ export default async function AdminBillingPage() {
               </thead>
               <tbody>
                 {snapshots.map((invoice) => (
-                  <tr key={invoice.id} className="bg-white shadow-panel">
+                  <tr key={invoice.id} className="admin-row">
                     <td className="rounded-l-2xl border-y border-l border-line px-4 py-4">
                       <p className="font-medium text-ink">{invoice.id}</p>
                       <p className="mt-1 font-mono text-xs text-mute">{invoice.customer || "unknown customer"}</p>

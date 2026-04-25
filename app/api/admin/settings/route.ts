@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireApiAdminContext } from "@/lib/admin/auth";
 import { updateFeatureFlag, updatePlatformSettings } from "@/lib/admin/actions";
@@ -49,6 +50,8 @@ export async function POST(request: Request) {
         body.reason
       );
     }
+    revalidatePath("/admin/settings");
+    revalidatePath("/admin");
     return NextResponse.json({ ok: true, result });
   } catch (error) {
     return NextResponse.json(
