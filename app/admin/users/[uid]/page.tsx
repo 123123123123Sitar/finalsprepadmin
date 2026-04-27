@@ -84,13 +84,26 @@ export default async function AdminUserDetailPage({
           value={formatNumber(detail.tokenBank.balance)}
           hint={`Lifetime billing units charged: ${formatNumber(detail.aiUsage.totalTokens)}`}
         />
-        <StatCard
-          label="API tokens 30d"
-          value={formatNumber(
-            detail.aiUsage.totalInputTokens + detail.aiUsage.totalOutputTokens
-          )}
-          hint={`${formatNumber(detail.aiUsage.totalInputTokens)} in · ${formatNumber(detail.aiUsage.totalOutputTokens)} out · ${formatNumber(detail.aiUsage.totalRequests)} requests · ${formatUsd(detail.aiUsage.totalCostUsd)}`}
-        />
+        {(() => {
+          const rawTotal =
+            detail.aiUsage.totalInputTokens + detail.aiUsage.totalOutputTokens;
+          if (rawTotal > 0) {
+            return (
+              <StatCard
+                label="API tokens 30d"
+                value={formatNumber(rawTotal)}
+                hint={`${formatNumber(detail.aiUsage.totalInputTokens)} in · ${formatNumber(detail.aiUsage.totalOutputTokens)} out · ${formatNumber(detail.aiUsage.totalRequests)} requests · ${formatUsd(detail.aiUsage.totalCostUsd)}`}
+              />
+            );
+          }
+          return (
+            <StatCard
+              label="Activity 30d"
+              value={`${formatNumber(detail.aiUsage.totalTokens)} units`}
+              hint={`${formatNumber(detail.aiUsage.totalRequests)} requests · ${formatUsd(detail.aiUsage.totalCostUsd)} · raw token split unavailable for these entries (recorded before the schema update)`}
+            />
+          );
+        })()}
         <StatCard label="Last sign-in" value={formatDate(detail.auth.metadata.lastSignInTime)} hint={`Created ${formatDate(detail.auth.metadata.creationTime)}`} />
         <StatCard label="Stripe sync" value={detail.overlay.lastStripeSyncAt ? formatDate(detail.overlay.lastStripeSyncAt) : "Never"} hint={detail.billing.stripeCustomerId ? "Stripe linked" : "No Stripe customer"} />
       </section>
