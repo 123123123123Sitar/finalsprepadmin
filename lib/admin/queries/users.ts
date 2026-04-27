@@ -12,12 +12,17 @@ import type {
   AdminUserListItem,
   AdminUserOverlay,
   AppBillingProfile,
+  DailyTokens,
   ManualCreditAdjustment,
   TokenBank,
   UserAiUsageSummary,
 } from "@/lib/admin/types";
 import { daysAgo } from "@/lib/admin/utils";
 import { resolveEntryCostUsd } from "@/lib/admin/usage-costs";
+import {
+  DAILY_TOKEN_CAPS,
+  getDailyTokenUsageMap,
+} from "@/lib/admin/queries/daily-tokens";
 
 export type UserListQuery = {
   pageSize?: number;
@@ -115,6 +120,8 @@ async function getUserOverlays(uids: string[]) {
 function emptyUsageSummary(): UserAiUsageSummary {
   return {
     totalTokens: 0,
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
     totalCostUsd: 0,
     totalRequests: 0,
     failedRequests: 0,
@@ -123,8 +130,24 @@ function emptyUsageSummary(): UserAiUsageSummary {
   };
 }
 
+function readNumberish(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  return 0;
+}
+
 function applyUsageEntry(summary: UserAiUsageSummary, data: Record<string, unknown>) {
   const tokens = Number((data as { tokens?: unknown }).tokens || 0);
+  const metadata =
+    (data as { metadata?: unknown }).metadata &&
+    typeof (data as { metadata?: unknown }).metadata === "object"
+      ? ((data as { metadata: Record<string, unknown> }).metadata)
+      : {};
+  const inputTokens =
+    readNumberish((data as { inputTokens?: unknown }).inputTokens) ||
+    readNumberish(metadata.inputTokens);
+  const outputTokens =
+    readNumberish((data as { outputTokens?: unknown }).outputTokens) ||
+    readNumberish(metadata.outputTokens);
   const model =
     typeof (data as { model?: unknown }).model === "string"
       ? ((data as { model: string }).model)
@@ -134,6 +157,8 @@ function applyUsageEntry(summary: UserAiUsageSummary, data: Record<string, unkno
       ? ((data as { kind: string }).kind)
       : "unknown";
   summary.totalTokens += tokens;
+  summary.totalInputTokens += inputTokens;
+  summary.totalOutputTokens += outputTokens;
   summary.totalRequests += 1;
   summary.lastUsedAt = Math.max(
     summary.lastUsedAt || 0,
@@ -245,8 +270,10 @@ function toListItem(
   billing: AppBillingProfile | undefined,
   tokenBank: TokenBank | undefined,
   overlay: AdminUserOverlay | undefined,
-  usage: UserAiUsageSummary | undefined
+  usage: UserAiUsageSummary | undefined,
+  dailyTokens: DailyTokens | undefined
 ): AdminUserListItem {
+  const plan = billing?.plan ?? "learner";
   return {
     uid: user.uid,
     name: user.displayName ?? null,
@@ -256,11 +283,17 @@ function toListItem(
     lastSignInAt: parseTimestamp(user.metadata.lastSignInTime),
     emailVerified: user.emailVerified,
     providerIds: user.providerData.map((provider) => provider.providerId),
-    plan: billing?.plan ?? "learner",
+    plan,
     subscriptionStatus: billing?.status ?? "inactive",
     stripeCustomerId: billing?.stripeCustomerId,
     stripeSubscriptionId: billing?.stripeSubscriptionId,
     tokenBalance: tokenBank?.balance ?? 0,
+    dailyTokens:
+      dailyTokens ?? {
+        cap: DAILY_TOKEN_CAPS[plan] ?? DAILY_TOKEN_CAPS.learner,
+        used: 0,
+        remaining: DAILY_TOKEN_CAPS[plan] ?? DAILY_TOKEN_CAPS.learner,
+      },
     aiUsage: usage ?? emptyUsageSummary(),
     flags: defaultFlags(overlay),
     referralSource: overlay?.referralSource ?? null,
@@ -291,6 +324,13 @@ export async function listUsers(query: UserListQuery) {
     getUsageSummaries(uids),
   ]);
 
+  const dailyTokenMap = await getDailyTokenUsageMap(
+    users.map((user) => ({
+      uid: user.uid,
+      plan: billingMap.get(user.uid)?.plan ?? "learner",
+    }))
+  );
+
   return {
     items: users.map((user) =>
       toListItem(
@@ -298,7 +338,8 @@ export async function listUsers(query: UserListQuery) {
         billingMap.get(user.uid),
         tokenBankMap.get(user.uid),
         overlayMap.get(user.uid),
-        usageMap.get(user.uid)
+        usageMap.get(user.uid),
+        dailyTokenMap.get(user.uid)
       )
     ),
     nextPageToken: encodePageToken(nextPageToken),
@@ -388,14 +429,24 @@ export async function getUserDetail(uid: string): Promise<AdminUserDetail> {
     }
   );
 
+  const billing =
+    billingMap.get(uid) ?? {
+      plan: "learner" as const,
+      status: "inactive",
+    };
+  const dailyTokens = (
+    await getDailyTokenUsageMap([{ uid, plan: billing.plan }])
+  ).get(uid) ?? {
+    cap: DAILY_TOKEN_CAPS[billing.plan] ?? DAILY_TOKEN_CAPS.learner,
+    used: 0,
+    remaining: DAILY_TOKEN_CAPS[billing.plan] ?? DAILY_TOKEN_CAPS.learner,
+  };
+
   return {
     auth: user,
-    billing:
-      billingMap.get(uid) ?? {
-        plan: "learner",
-        status: "inactive",
-      },
+    billing,
     tokenBank: tokenMap.get(uid) ?? { balance: 0 },
+    dailyTokens,
     overlay: overlayMap.get(uid) ?? { uid },
     aiUsage: usageMap.get(uid) ?? emptyUsageSummary(),
     recentAiHistory: recentAiHistorySnap.docs.map((doc) => ({

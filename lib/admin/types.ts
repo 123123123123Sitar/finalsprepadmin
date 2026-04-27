@@ -70,6 +70,12 @@ export type TokenBank = {
   lastSource?: string | null;
 };
 
+export type DailyTokens = {
+  cap: number;
+  used: number;
+  remaining: number;
+};
+
 export type AdminUserOverlay = {
   uid: string;
   flags?: {
@@ -110,7 +116,12 @@ export type AdminUserOverlay = {
 };
 
 export type UserAiUsageSummary = {
+  /** Sum of cost-weighted billing units (see finalsprep/lib/aiCost.ts). */
   totalTokens: number;
+  /** Sum of raw input tokens reported by the model API. */
+  totalInputTokens: number;
+  /** Sum of raw output tokens reported by the model API. */
+  totalOutputTokens: number;
   totalCostUsd: number;
   totalRequests: number;
   failedRequests: number;
@@ -133,6 +144,7 @@ export type AdminUserListItem = {
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   tokenBalance: number;
+  dailyTokens: DailyTokens;
   aiUsage: UserAiUsageSummary;
   flags: Required<NonNullable<AdminUserOverlay["flags"]>>;
   referralSource?: string | null;
@@ -142,6 +154,7 @@ export type AdminUserDetail = {
   auth: UserRecord;
   billing: AppBillingProfile;
   tokenBank: TokenBank;
+  dailyTokens: DailyTokens;
   overlay: AdminUserOverlay;
   aiUsage: UserAiUsageSummary;
   recentAiHistory: Array<Record<string, unknown> & { id: string }>;

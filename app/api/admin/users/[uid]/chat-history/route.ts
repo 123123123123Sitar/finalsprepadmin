@@ -15,6 +15,17 @@ const bodySchema = z.object({
   sinceDays: z.number().int().min(1).max(365).optional(),
 });
 
+function statusForError(error: unknown): number {
+  if (!(error instanceof Error)) return 500;
+  if (error.message === "UNAUTHORIZED") return 401;
+  if (error.message === "FORBIDDEN") return 403;
+  if (error.name === "ZodError") return 400;
+  // Firestore failed-precondition is almost always a missing index.
+  const code = (error as { code?: unknown }).code;
+  if (code === 9 || code === "9" || code === "failed-precondition") return 412;
+  return 500;
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ uid: string }> }
@@ -46,28 +57,32 @@ export async function POST(
         limit: body.limit ?? CHAT_HISTORY_MAX_ENTRIES,
         sinceDays: body.sinceDays ?? null,
         totalTokens: result.totalTokens,
+        totalInputTokens: result.totalInputTokens,
+        totalOutputTokens: result.totalOutputTokens,
         totalCostUsd: result.totalCostUsd,
       },
     });
 
     return NextResponse.json({ ok: true, result });
   } catch (error) {
+    const status = statusForError(error);
+    const message =
+      error instanceof Error ? error.message : "Failed to pull chat history";
+    console.error("[admin.chatHistory.route] pull failed", {
+      uid: resolvedParams.uid,
+      status,
+      message,
+      code: (error as { code?: unknown })?.code ?? null,
+    });
     if (actor) {
       await writeAuditLog(actor, {
         action: "user.pull_chat_history",
         targetType: "user",
         targetId: resolvedParams.uid,
         status: "failed",
-        reason:
-          error instanceof Error ? error.message : "Unknown chat history pull error",
+        reason: message,
       }).catch(() => {});
     }
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Failed to pull chat history",
-      },
-      { status: error instanceof Error && error.message === "FORBIDDEN" ? 403 : 400 }
-    );
+    return NextResponse.json({ error: message }, { status });
   }
 }

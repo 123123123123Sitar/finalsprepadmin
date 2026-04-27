@@ -73,9 +73,24 @@ export default async function AdminUserDetailPage({
         }
       />
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Token balance" value={formatNumber(detail.tokenBank.balance)} hint={`Lifetime tokens used: ${formatNumber(detail.aiUsage.totalTokens)}`} />
-        <StatCard label="AI requests 30d" value={formatNumber(detail.aiUsage.totalRequests)} hint={`Estimated cost ${formatUsd(detail.aiUsage.totalCostUsd)}`} />
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <StatCard
+          label="Daily budget"
+          value={`${formatNumber(detail.dailyTokens.remaining)} / ${formatNumber(detail.dailyTokens.cap)}`}
+          hint={`Used in last 24h: ${formatNumber(detail.dailyTokens.used)} billing units (${detail.billing.plan} plan)`}
+        />
+        <StatCard
+          label="Bonus tokens"
+          value={formatNumber(detail.tokenBank.balance)}
+          hint={`Lifetime billing units charged: ${formatNumber(detail.aiUsage.totalTokens)}`}
+        />
+        <StatCard
+          label="API tokens 30d"
+          value={formatNumber(
+            detail.aiUsage.totalInputTokens + detail.aiUsage.totalOutputTokens
+          )}
+          hint={`${formatNumber(detail.aiUsage.totalInputTokens)} in · ${formatNumber(detail.aiUsage.totalOutputTokens)} out · ${formatNumber(detail.aiUsage.totalRequests)} requests · ${formatUsd(detail.aiUsage.totalCostUsd)}`}
+        />
         <StatCard label="Last sign-in" value={formatDate(detail.auth.metadata.lastSignInTime)} hint={`Created ${formatDate(detail.auth.metadata.creationTime)}`} />
         <StatCard label="Stripe sync" value={detail.overlay.lastStripeSyncAt ? formatDate(detail.overlay.lastStripeSyncAt) : "Never"} hint={detail.billing.stripeCustomerId ? "Stripe linked" : "No Stripe customer"} />
       </section>

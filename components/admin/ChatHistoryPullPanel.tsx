@@ -7,9 +7,13 @@ type ChatHistoryEntry = {
   kind: string | null;
   model: string | null;
   tokens: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
   costUsd: number;
   promptPreview: string | null;
   responsePreview: string | null;
+  prompt: string | null;
+  response: string | null;
   createdAt: number | null;
 };
 
@@ -20,6 +24,9 @@ type ChatHistoryPullResult = {
   firstAt: number | null;
   lastAt: number | null;
   totalTokens: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  entriesMissingRawTokens: number;
   totalCostUsd: number;
   byKind: Record<string, number>;
   byModel: Record<string, number>;
@@ -82,17 +89,31 @@ export function ChatHistoryPullPanel({
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = await response.json();
-      if (!response.ok) {
-        throw new Error(json?.error || "Failed to pull chat history");
+      let json: { ok?: boolean; result?: ChatHistoryPullResult; error?: string } = {};
+      try {
+        json = await response.json();
+      } catch {
+        // Body wasn't JSON — fall through to status-based error.
       }
-      setResult(json.result as ChatHistoryPullResult);
+      if (!response.ok) {
+        throw new Error(
+          json?.error || `Pull failed (HTTP ${response.status})`
+        );
+      }
+      if (!json.result) {
+        throw new Error("Pull succeeded but returned no result payload.");
+      }
+      setResult(json.result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
     }
   }
+
+  const totalApiTokens =
+    (result?.totalInputTokens ?? 0) + (result?.totalOutputTokens ?? 0);
+  const hasZeroEntries = result !== null && result.entryCount === 0;
 
   return (
     <section className="admin-card p-6">
@@ -168,9 +189,19 @@ export function ChatHistoryPullPanel({
         </p>
       ) : null}
 
-      {result ? (
+      {hasZeroEntries ? (
+        <p className="admin-toast-enter mt-4 rounded-2xl border border-line bg-slate-50 px-4 py-3 text-sm text-body">
+          No AI history found for this user
+          {sinceDays ? ` in the last ${sinceDays} days` : ""}. They may not have
+          used any AI features yet — confirm by checking{" "}
+          <code className="font-mono text-xs">users/{uid}/aiHistory</code> in
+          Firestore directly.
+        </p>
+      ) : null}
+
+      {result && result.entryCount > 0 ? (
         <div className="admin-toast-enter mt-6 space-y-5">
-          <div className="grid gap-3 rounded-2xl border border-line bg-slate-50 p-4 text-sm text-body md:grid-cols-4">
+          <div className="grid gap-3 rounded-2xl border border-line bg-slate-50 p-4 text-sm text-body md:grid-cols-5">
             <div>
               <p className="text-xs uppercase tracking-wide text-mute">Entries</p>
               <p className="mt-1 font-display text-2xl text-ink">
@@ -183,9 +214,32 @@ export function ChatHistoryPullPanel({
               ) : null}
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-mute">Total tokens</p>
+              <p className="text-xs uppercase tracking-wide text-mute">
+                API tokens (in + out)
+              </p>
+              <p className="mt-1 font-display text-2xl text-ink">
+                {formatNumber(totalApiTokens)}
+              </p>
+              <p className="mt-1 text-xs text-mute">
+                {formatNumber(result.totalInputTokens)} in ·{" "}
+                {formatNumber(result.totalOutputTokens)} out
+              </p>
+              {result.entriesMissingRawTokens > 0 ? (
+                <p className="mt-1 text-xs text-warning">
+                  {formatNumber(result.entriesMissingRawTokens)} older
+                  entries lack raw tokens.
+                </p>
+              ) : null}
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-mute">
+                Billing units
+              </p>
               <p className="mt-1 font-display text-2xl text-ink">
                 {formatNumber(result.totalTokens)}
+              </p>
+              <p className="mt-1 text-xs text-mute">
+                Cost-weighted (floor + tax + multipliers).
               </p>
             </div>
             <div>
@@ -238,7 +292,8 @@ export function ChatHistoryPullPanel({
                   <th className="px-4 py-3 text-left">When</th>
                   <th className="px-4 py-3 text-left">Kind</th>
                   <th className="px-4 py-3 text-left">Model</th>
-                  <th className="px-4 py-3 text-right">Tokens</th>
+                  <th className="px-4 py-3 text-right">In / Out</th>
+                  <th className="px-4 py-3 text-right">Billed</th>
                   <th className="px-4 py-3 text-right">Cost</th>
                   <th className="px-4 py-3 text-left">Preview</th>
                 </tr>
@@ -249,6 +304,11 @@ export function ChatHistoryPullPanel({
                     <td className="px-4 py-3 text-body">{formatDate(entry.createdAt)}</td>
                     <td className="px-4 py-3 text-body">{entry.kind || "—"}</td>
                     <td className="px-4 py-3 font-mono text-xs text-body">{entry.model || "—"}</td>
+                    <td className="px-4 py-3 text-right text-body">
+                      {entry.inputTokens === null && entry.outputTokens === null
+                        ? "—"
+                        : `${formatNumber(entry.inputTokens || 0)} / ${formatNumber(entry.outputTokens || 0)}`}
+                    </td>
                     <td className="px-4 py-3 text-right text-body">{formatNumber(entry.tokens)}</td>
                     <td className="px-4 py-3 text-right text-body">{formatUsd(entry.costUsd)}</td>
                     <td className="px-4 py-3 text-body">
