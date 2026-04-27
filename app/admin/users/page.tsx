@@ -127,7 +127,7 @@ export default async function AdminUsersPage({
           <select className="admin-select" defaultValue={sort} name="sort">
             <option value="last_active">Sort: last active</option>
             <option value="created">Sort: created</option>
-            <option value="tokens">Sort: token balance</option>
+            <option value="tokens">Sort: bonus tokens</option>
             <option value="cost">Sort: AI cost</option>
             <option value="email">Sort: email</option>
           </select>
@@ -196,7 +196,10 @@ export default async function AdminUsersPage({
                         </Badge>
                       </div>
                       <p className="mt-3 text-sm text-body">
-                        Token balance: {formatNumber(user.tokenBalance)}
+                        Daily tokens: {formatNumber(user.dailyTokens.remaining)} / {formatNumber(user.dailyTokens.cap)}
+                      </p>
+                      <p className="mt-1 text-sm text-body">
+                        Bonus tokens: {formatNumber(user.tokenBalance)}
                       </p>
                       <p className="mt-1 text-sm text-body">
                         Customer: {user.stripeCustomerId ? "linked" : "none"}
@@ -204,7 +207,25 @@ export default async function AdminUsersPage({
                     </td>
                     <td className="border-y border-line px-4 py-4 align-top">
                       <p className="text-sm text-body">{formatNumber(user.aiUsage.totalRequests)} requests / 30d</p>
-                      <p className="mt-1 text-sm text-body">{formatNumber(user.aiUsage.totalTokens)} tokens / 30d</p>
+                      {user.aiUsage.totalInputTokens + user.aiUsage.totalOutputTokens > 0 ? (
+                        <>
+                          <p className="mt-1 text-sm text-body">
+                            {formatNumber(
+                              user.aiUsage.totalInputTokens + user.aiUsage.totalOutputTokens
+                            )}{" "}
+                            API tokens / 30d
+                          </p>
+                          <p className="mt-1 text-xs text-mute">
+                            {formatNumber(user.aiUsage.totalInputTokens)} in ·{" "}
+                            {formatNumber(user.aiUsage.totalOutputTokens)} out ·{" "}
+                            {formatNumber(user.aiUsage.totalTokens)} billing units
+                          </p>
+                        </>
+                      ) : (
+                        <p className="mt-1 text-sm text-body">
+                          {formatNumber(user.aiUsage.totalTokens)} billing units / 30d
+                        </p>
+                      )}
                       <p className="mt-1 text-sm text-body">{formatUsd(user.aiUsage.totalCostUsd)} est. cost</p>
                     </td>
                     <td className="border-y border-line px-4 py-4 align-top">
