@@ -2,6 +2,15 @@ import { Badge } from "@/components/admin/Badge";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { SectionCard } from "@/components/admin/SectionCard";
+import { AuditLogsFilterBar } from "@/components/admin/AuditLogsFilterBar";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button";
+import { ChevronsUpDown } from "lucide-react";
 import { listAuditLogs } from "@/lib/admin/queries/audit";
 import { formatDate } from "@/lib/admin/utils";
 
@@ -34,53 +43,86 @@ export default async function AdminAuditLogsPage({
         description="Every sensitive admin action records actor, target, status, reason, and before/after state. Filter this page when investigating mistakes or escalation history."
       />
 
-      <SectionCard title="Filters" description="Target ID is usually a user UID, settings key, or feature-flag key.">
-        <form action="/admin/audit-logs" className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_180px_auto]">
-          <input className="admin-input" defaultValue={targetId} name="targetId" placeholder="Target id" />
-          <input className="admin-input" defaultValue={actorUid} name="actorUid" placeholder="Actor uid" />
-          <input className="admin-input" defaultValue={action} name="action" placeholder="Action name" />
-          <input className="admin-input" defaultValue={String(limit)} inputMode="numeric" name="limit" placeholder="Limit" />
-          <button className="admin-button" type="submit">Apply</button>
-        </form>
+      <SectionCard
+        title="Filters"
+        description="Target ID is usually a user UID, settings key, or feature-flag key."
+      >
+        <AuditLogsFilterBar
+          initial={{
+            targetId,
+            actorUid,
+            action,
+            limit: String(limit),
+          }}
+        />
       </SectionCard>
 
-      <SectionCard title="Entries" description={`${logs.length} audit entries returned.`}>
+      <SectionCard
+        title="Entries"
+        description={`${logs.length} audit entries returned.`}
+      >
         {logs.length === 0 ? (
-          <EmptyState title="No audit entries" description="Nothing matched the current filters." />
+          <EmptyState
+            description="Nothing matched the current filters."
+            title="No audit entries"
+          />
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {logs.map((log) => (
-              <div key={log.id} className="rounded-2xl border border-line p-5">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-display text-2xl text-ink">{log.action}</h3>
-                      <Badge tone={log.status === "success" ? "success" : "danger"}>
-                        {log.status}
-                      </Badge>
-                      <Badge tone="neutral">{log.targetType}</Badge>
+              <Card key={log.id}>
+                <CardContent className="space-y-4 p-5">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-display text-base font-semibold text-foreground">
+                          {log.action}
+                        </h3>
+                        <Badge tone={log.status === "success" ? "success" : "danger"}>
+                          {log.status}
+                        </Badge>
+                        <Badge tone="neutral">{log.targetType}</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Actor:{" "}
+                        <span className="text-foreground">
+                          {log.actorEmail || log.actorUid}
+                        </span>{" "}
+                        · Target:{" "}
+                        <span className="font-mono text-xs text-foreground">
+                          {log.targetId}
+                        </span>{" "}
+                        · {formatDate(log.createdAt)}
+                      </p>
+                      {log.reason ? (
+                        <p className="text-sm leading-6 text-foreground">
+                          {log.reason}
+                        </p>
+                      ) : null}
                     </div>
-                    <p className="mt-2 text-sm text-body">
-                      Actor: {log.actorEmail || log.actorUid} • Target: {log.targetId} • {formatDate(log.createdAt)}
-                    </p>
-                    {log.reason ? <p className="mt-2 text-sm leading-6 text-body">{log.reason}</p> : null}
                   </div>
-                </div>
-                <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                  <details className="rounded-2xl bg-slate-50 p-4 text-sm text-body">
-                    <summary className="cursor-pointer font-medium text-ink">Before</summary>
-                    <pre className="mt-3 overflow-x-auto whitespace-pre-wrap font-mono text-xs text-body">
-                      {JSON.stringify(log.before || {}, null, 2)}
-                    </pre>
-                  </details>
-                  <details className="rounded-2xl bg-slate-50 p-4 text-sm text-body">
-                    <summary className="cursor-pointer font-medium text-ink">After</summary>
-                    <pre className="mt-3 overflow-x-auto whitespace-pre-wrap font-mono text-xs text-body">
-                      {JSON.stringify(log.after || {}, null, 2)}
-                    </pre>
-                  </details>
-                </div>
-              </div>
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    {(["before", "after"] as const).map((side) => (
+                      <Collapsible key={side}>
+                        <CollapsibleTrigger asChild>
+                          <Button
+                            className="w-full justify-between"
+                            size="sm"
+                            variant="outline"
+                          >
+                            <span className="capitalize">{side}</span>
+                            <ChevronsUpDown className="h-3.5 w-3.5" />
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-2 rounded-lg bg-muted/40 p-3">
+                          <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-xs text-foreground">
+                            {JSON.stringify(log[side] || {}, null, 2)}
+                          </pre>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         )}

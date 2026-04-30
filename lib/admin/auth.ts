@@ -16,7 +16,6 @@ function normalizeRoles(value: unknown): AdminRole[] {
       role === "readonly_admin" ||
       role === "support_admin" ||
       role === "content_admin" ||
-      role === "billing_admin" ||
       role === "super_admin"
   );
 }

@@ -5,7 +5,6 @@ export type AdminRole =
   | "readonly_admin"
   | "support_admin"
   | "content_admin"
-  | "billing_admin"
   | "super_admin";
 
 export type AdminPermission =
@@ -13,8 +12,6 @@ export type AdminPermission =
   | "users.read"
   | "users.write"
   | "support.write"
-  | "billing.read"
-  | "billing.write"
   | "usage.read"
   | "usage.write"
   | "content.read"
@@ -54,9 +51,6 @@ export type AppBillingProfile = {
   plan: PlanTier;
   billingInterval?: BillingInterval;
   status?: string;
-  stripeCustomerId?: string;
-  stripeSubscriptionId?: string;
-  stripePriceId?: string;
   currentPeriodEnd?: number;
   updatedAt?: number;
   cancelAt?: number | null;
@@ -111,7 +105,6 @@ export type AdminUserOverlay = {
   pricingCohort?: string | null;
   deactivatedAt?: number | null;
   deactivatedBy?: string | null;
-  lastStripeSyncAt?: number | null;
   updatedAt?: number;
 };
 
@@ -141,8 +134,6 @@ export type AdminUserListItem = {
   providerIds: string[];
   plan: PlanTier;
   subscriptionStatus: string;
-  stripeCustomerId?: string;
-  stripeSubscriptionId?: string;
   tokenBalance: number;
   dailyTokens: DailyTokens;
   aiUsage: UserAiUsageSummary;
@@ -195,16 +186,7 @@ export type AdminOverviewMetrics = {
   totalMessages30d: number;
   totalAiRequests30d: number;
   estimatedAiCost30d: number;
-  arpuPaid: number;
   costPerActiveMau: number;
-  revenue: {
-    mrr: number;
-    arr: number;
-    openInvoices: number;
-    failedPayments: number;
-    activeSubscriptions: number;
-    cancelAtPeriodEnd: number;
-  };
   popularCourses: Array<{ name: string; value: number }>;
   popularUnits: Array<{ name: string; value: number }>;
   featureUsage: Array<{ name: string; value: number }>;
@@ -213,7 +195,6 @@ export type AdminOverviewMetrics = {
   supportHotUsers: number;
   systemStatus: {
     firebaseAdmin: boolean;
-    stripe: boolean;
     contentSourceAvailable: boolean;
     lastContentHealthSyncAt?: number;
   };
@@ -226,20 +207,6 @@ export type UsageTimeseriesPoint = {
   costUsd: number;
   requests: number;
   failedRequests: number;
-};
-
-export type BillingRiskItem = {
-  uid: string;
-  email: string | null;
-  plan: PlanTier;
-  status: string;
-  currentPeriodEnd?: number;
-  cancelAt?: number | null;
-  cancelAtPeriodEnd?: boolean | null;
-  amountDue?: number | null;
-  invoiceStatus?: string | null;
-  stripeCustomerId?: string;
-  stripeSubscriptionId?: string;
 };
 
 export type ContentHealthRecord = {
@@ -362,7 +329,7 @@ export type AdminAuditLog = {
   actorUid: string;
   actorEmail?: string | null;
   actorRoles: AdminRole[];
-  targetType: "user" | "settings" | "feature_flag" | "billing" | "content" | "system";
+  targetType: "user" | "settings" | "feature_flag" | "content" | "system";
   targetId: string;
   reason?: string | null;
   status: "success" | "failed";

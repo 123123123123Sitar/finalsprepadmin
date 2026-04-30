@@ -1,15 +1,24 @@
+import { Card, CardContent } from "@/components/ui/card";
+import { Inbox } from "lucide-react";
+
 export function EmptyState({
   title,
   description,
+  icon,
 }: {
   title: string;
   description: string;
+  icon?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-dashed border-line bg-slate-50 p-8 text-center">
-      <p className="font-display text-2xl text-ink">{title}</p>
-      <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-body">{description}</p>
-    </div>
+    <Card className="border-2 border-dashed bg-muted/30 shadow-none">
+      <CardContent className="flex flex-col items-center justify-center gap-3 p-10 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-background text-muted-foreground">
+          {icon ?? <Inbox className="h-6 w-6" />}
+        </div>
+        <p className="font-display text-xl font-medium text-foreground">{title}</p>
+        <p className="max-w-md text-sm leading-6 text-muted-foreground">{description}</p>
+      </CardContent>
+    </Card>
   );
 }
-

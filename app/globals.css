@@ -2,105 +2,76 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
-}
+@layer base {
+  :root {
+    color-scheme: light;
 
-html,
-body {
-  margin: 0;
-  min-height: 100%;
-  background: #f8fafc;
-  color: #0f172a;
-}
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
 
-body {
-  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
-  background-image:
-    radial-gradient(circle at top left, rgba(251, 146, 60, 0.10), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.06), transparent 32%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 1));
-}
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
 
-* {
-  box-sizing: border-box;
-}
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
 
-.page-shell {
-  @apply min-h-screen bg-paper text-body;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 24 95% 53%;
+
+    --chart-1: 24 95% 53%;
+    --chart-2: 199 89% 48%;
+    --chart-3: 142 71% 45%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 271 81% 56%;
+
+    --radius: 0.75rem;
+
+    --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+    --font-mono-stack: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    background-image:
+      radial-gradient(circle at top left, rgba(251, 146, 60, 0.10), transparent 28%),
+      radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.06), transparent 32%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.92), hsl(var(--background)));
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }
 
 .font-display {
   font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
-}
-
-.font-mono {
-  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-.admin-card {
-  @apply rounded-2xl border border-line bg-panel shadow-panel;
-}
-
-.admin-input {
-  @apply w-full rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none transition hover:border-slate-300 focus:border-accent focus:ring-2 focus:ring-accent/20;
-}
-
-.admin-select {
-  @apply admin-input appearance-none cursor-pointer pr-9 bg-no-repeat;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20' fill='none' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='5 8 10 13 15 8'/></svg>");
-  background-position: right 0.65rem center;
-  background-size: 1rem 1rem;
-}
-
-.admin-textarea {
-  @apply admin-input min-h-[110px] resize-y;
-}
-
-.admin-button {
-  @apply inline-flex items-center justify-center rounded-xl bg-ink px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60;
-}
-
-.admin-button-secondary {
-  @apply inline-flex items-center justify-center rounded-xl border border-line bg-white px-4 py-2 text-sm font-medium text-ink transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60;
-}
-
-.admin-button-danger {
-  @apply inline-flex items-center justify-center rounded-xl bg-danger px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger disabled:cursor-not-allowed disabled:opacity-60;
-}
-
-.admin-button-accent {
-  @apply inline-flex items-center justify-center rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-orange-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60;
-}
-
-.badge {
-  @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium;
-}
-
-.admin-row {
-  @apply bg-white shadow-panel transition hover:shadow-md;
-}
-
-.admin-toast-enter {
-  animation: admin-toast-in 180ms ease-out both;
-}
-
-@keyframes admin-toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.admin-skeleton {
-  @apply animate-pulse rounded-2xl bg-slate-100;
 }

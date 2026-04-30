@@ -1,16 +1,24 @@
 import Link from "next/link";
+import { ArrowLeft, ArrowRight, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/admin/Badge";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { SectionCard } from "@/components/admin/SectionCard";
+import { UsersFilterBar } from "@/components/admin/UsersFilterBar";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { listUsers } from "@/lib/admin/queries/users";
 import type { AdminUserListItem } from "@/lib/admin/types";
 import { formatDate, formatNumber, formatUsd } from "@/lib/admin/utils";
 
-function readParam(
-  value: string | string[] | undefined,
-  fallback = ""
-) {
+function readParam(value: string | string[] | undefined, fallback = "") {
   return typeof value === "string" ? value : fallback;
 }
 
@@ -57,7 +65,7 @@ function filterUsers(
   });
 }
 
-function buildHref(params: Record<string, string>) {
+function buildHref(params: Record<string, string | undefined>) {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value) search.set(key, value);
@@ -74,6 +82,7 @@ export default async function AdminUsersPage({
   const resolvedSearchParams = (await searchParams) || {};
   const search = readParam(resolvedSearchParams.search);
   const pageToken = readParam(resolvedSearchParams.pageToken);
+  const pageStack = readParam(resolvedSearchParams.pageStack);
   const plan = readParam(resolvedSearchParams.plan);
   const status = readParam(resolvedSearchParams.status);
   const flag = readParam(resolvedSearchParams.flag);
@@ -91,6 +100,42 @@ export default async function AdminUsersPage({
     sort
   );
 
+  const stack = pageStack
+    ? pageStack.split(",").filter(Boolean)
+    : [];
+
+  // forward: append current pageToken to stack so we can navigate back
+  const nextStack = pageToken ? [...stack, pageToken] : stack;
+  const nextHref = data.nextPageToken
+    ? buildHref({
+        search,
+        plan,
+        status,
+        flag,
+        sort,
+        pageSize: String(pageSize),
+        pageToken: data.nextPageToken,
+        pageStack: nextStack.join(","),
+      })
+    : null;
+
+  // back: pop the last stack entry, use it as the previous pageToken
+  const prevStack = stack.slice(0, -1);
+  const prevToken = stack[stack.length - 1];
+  const hasPrev = stack.length > 0;
+  const prevHref = hasPrev
+    ? buildHref({
+        search,
+        plan,
+        status,
+        flag,
+        sort,
+        pageSize: String(pageSize),
+        pageToken: prevStack.length > 0 ? prevToken : "",
+        pageStack: prevStack.join(","),
+      })
+    : null;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -99,43 +144,17 @@ export default async function AdminUsersPage({
         description="Search Firebase-authenticated users, inspect subscription state and AI usage, then move into the full detail page for support, billing, or moderation actions."
       />
 
-      <SectionCard title="Filters" description="Search by email, display name, or UID. Sort and filter refine the current result page.">
-        <form action="/admin/users" className="grid gap-4 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto]">
-          <input className="admin-input" defaultValue={search} name="search" placeholder="Search email, uid, or display name" />
-          <select className="admin-select" defaultValue={plan} name="plan">
-            <option value="">All plans</option>
-            <option value="learner">Learner</option>
-            <option value="pro">Pro</option>
-            <option value="hacker">Hacker</option>
-          </select>
-          <select className="admin-select" defaultValue={status} name="status">
-            <option value="">All statuses</option>
-            <option value="active">active</option>
-            <option value="trialing">trialing</option>
-            <option value="past_due">past_due</option>
-            <option value="canceled">canceled</option>
-            <option value="inactive">inactive</option>
-          </select>
-          <select className="admin-select" defaultValue={flag} name="flag">
-            <option value="">All flags</option>
-            <option value="banned">banned</option>
-            <option value="suspicious">suspicious</option>
-            <option value="refunded">refunded</option>
-            <option value="test">test</option>
-            <option value="billing_watch">billing_watch</option>
-          </select>
-          <select className="admin-select" defaultValue={sort} name="sort">
-            <option value="last_active">Sort: last active</option>
-            <option value="created">Sort: created</option>
-            <option value="tokens">Sort: bonus tokens</option>
-            <option value="cost">Sort: AI cost</option>
-            <option value="email">Sort: email</option>
-          </select>
-          <button className="admin-button" type="submit">Apply</button>
-        </form>
+      <SectionCard
+        title="Filters"
+        description="Search by email, display name, or UID. Sort and filter refine the current result page."
+      >
+        <UsersFilterBar
+          initial={{ search, plan, status, flag, sort }}
+        />
         {data.searchMode ? (
-          <p className="mt-4 text-sm text-body">
-            Search mode scans up to 1,000 Firebase Auth users when needed. For deeper support work, search by exact email or UID.
+          <p className="mt-4 text-sm text-muted-foreground">
+            Search mode scans up to 1,000 Firebase Auth users when needed. For
+            deeper support work, search by exact email or UID.
           </p>
         ) : null}
       </SectionCard>
@@ -144,22 +163,24 @@ export default async function AdminUsersPage({
         title="Users"
         description={`${filteredItems.length} results on this page. Pagination is cursor-based through Firebase Auth.`}
         actions={
-          data.nextPageToken ? (
-            <Link
-              className="admin-button-secondary"
-              href={buildHref({
-                search,
-                plan,
-                status,
-                flag,
-                sort,
-                pageSize: String(pageSize),
-                pageToken: data.nextPageToken,
-              })}
-            >
-              Next page
-            </Link>
-          ) : null
+          <div className="flex flex-wrap gap-2">
+            {prevHref ? (
+              <Button asChild size="sm" variant="outline">
+                <Link href={prevHref}>
+                  <ArrowLeft className="mr-2 h-3.5 w-3.5" />
+                  Previous
+                </Link>
+              </Button>
+            ) : null}
+            {nextHref ? (
+              <Button asChild size="sm" variant="outline">
+                <Link href={nextHref}>
+                  Next
+                  <ArrowRight className="ml-2 h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            ) : null}
+          </div>
         }
       >
         {filteredItems.length === 0 ? (
@@ -169,95 +190,121 @@ export default async function AdminUsersPage({
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full border-separate border-spacing-y-3">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-[0.18em] text-mute">
-                  <th className="pb-2">User</th>
-                  <th className="pb-2">Plan</th>
-                  <th className="pb-2">AI usage</th>
-                  <th className="pb-2">Flags</th>
-                  <th className="pb-2">Last active</th>
-                  <th className="pb-2" />
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Plan / status</TableHead>
+                  <TableHead>AI usage (30d)</TableHead>
+                  <TableHead>Flags</TableHead>
+                  <TableHead>Activity</TableHead>
+                  <TableHead className="text-right">Open</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {filteredItems.map((user) => (
-                  <tr key={user.uid} className="admin-row rounded-2xl">
-                    <td className="rounded-l-2xl border-y border-l border-line px-4 py-4 align-top">
-                      <p className="font-medium text-ink">{user.name || "Unnamed user"}</p>
-                      <p className="mt-1 text-sm text-body">{user.email || "no-email"}</p>
-                      <p className="mt-2 font-mono text-xs text-mute">{user.uid}</p>
-                    </td>
-                    <td className="border-y border-line px-4 py-4 align-top">
+                  <TableRow key={user.uid} className="align-top">
+                    <TableCell className="py-4">
+                      <p className="font-medium text-foreground">
+                        {user.name || "Unnamed user"}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {user.email || "no-email"}
+                      </p>
+                      <p className="mt-2 font-mono text-xs text-muted-foreground/80">
+                        {user.uid}
+                      </p>
+                    </TableCell>
+                    <TableCell className="py-4">
                       <div className="flex flex-wrap gap-2">
-                        <Badge tone={user.plan === "learner" ? "neutral" : "accent"}>{user.plan}</Badge>
-                        <Badge tone={user.subscriptionStatus === "active" ? "success" : user.subscriptionStatus === "past_due" ? "danger" : "warning"}>
+                        <Badge tone={user.plan === "learner" ? "neutral" : "accent"}>
+                          {user.plan}
+                        </Badge>
+                        <Badge
+                          tone={
+                            user.subscriptionStatus === "active"
+                              ? "success"
+                              : user.subscriptionStatus === "past_due"
+                                ? "danger"
+                                : "warning"
+                          }
+                        >
                           {user.subscriptionStatus}
                         </Badge>
                       </div>
-                      <p className="mt-3 text-sm text-body">
-                        Daily tokens: {formatNumber(user.dailyTokens.remaining)} / {formatNumber(user.dailyTokens.cap)}
+                      <p className="mt-3 text-sm text-muted-foreground">
+                        Daily tokens:{" "}
+                        <span className="text-foreground">
+                          {formatNumber(user.dailyTokens.remaining)} /{" "}
+                          {formatNumber(user.dailyTokens.cap)}
+                        </span>
                       </p>
-                      <p className="mt-1 text-sm text-body">
-                        Bonus tokens: {formatNumber(user.tokenBalance)}
+                      <p className="text-sm text-muted-foreground">
+                        Bonus:{" "}
+                        <span className="text-foreground">
+                          {formatNumber(user.tokenBalance)}
+                        </span>
                       </p>
-                      <p className="mt-1 text-sm text-body">
-                        Customer: {user.stripeCustomerId ? "linked" : "none"}
+                    </TableCell>
+                    <TableCell className="py-4">
+                      <p className="text-sm text-muted-foreground">
+                        {formatNumber(user.aiUsage.totalRequests)} requests
                       </p>
-                    </td>
-                    <td className="border-y border-line px-4 py-4 align-top">
-                      <p className="text-sm text-body">{formatNumber(user.aiUsage.totalRequests)} requests / 30d</p>
-                      {user.aiUsage.totalInputTokens + user.aiUsage.totalOutputTokens > 0 ? (
-                        <>
-                          <p className="mt-1 text-sm text-body">
-                            {formatNumber(
-                              user.aiUsage.totalInputTokens + user.aiUsage.totalOutputTokens
-                            )}{" "}
-                            API tokens / 30d
-                          </p>
-                          <p className="mt-1 text-xs text-mute">
-                            {formatNumber(user.aiUsage.totalInputTokens)} in ·{" "}
-                            {formatNumber(user.aiUsage.totalOutputTokens)} out ·{" "}
-                            {formatNumber(user.aiUsage.totalTokens)} billing units
-                          </p>
-                        </>
-                      ) : (
-                        <p className="mt-1 text-sm text-body">
-                          {formatNumber(user.aiUsage.totalTokens)} billing units / 30d
-                        </p>
-                      )}
-                      <p className="mt-1 text-sm text-body">{formatUsd(user.aiUsage.totalCostUsd)} est. cost</p>
-                    </td>
-                    <td className="border-y border-line px-4 py-4 align-top">
-                      <div className="flex flex-wrap gap-2">
+                      <p className="text-sm text-muted-foreground">
+                        {formatNumber(user.aiUsage.totalTokens)} units
+                      </p>
+                      <p className="text-sm font-medium text-foreground">
+                        {formatUsd(user.aiUsage.totalCostUsd)}
+                      </p>
+                    </TableCell>
+                    <TableCell className="py-4">
+                      <div className="flex flex-wrap gap-1.5">
                         {Object.entries(user.flags)
                           .filter(([, enabled]) => enabled)
                           .map(([key]) => (
-                            <Badge key={key} tone={key === "banned" || key === "suspicious" ? "danger" : "warning"}>
+                            <Badge
+                              key={key}
+                              tone={key === "banned" || key === "suspicious" ? "danger" : "warning"}
+                            >
                               {key}
                             </Badge>
                           ))}
                         {Object.values(user.flags).every((enabled) => !enabled) ? (
-                          <Badge tone="neutral">clean</Badge>
+                          <Badge tone="success">clean</Badge>
                         ) : null}
                       </div>
                       {user.referralSource ? (
-                        <p className="mt-3 text-sm text-body">Source: {user.referralSource}</p>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Source: {user.referralSource}
+                        </p>
                       ) : null}
-                    </td>
-                    <td className="border-y border-line px-4 py-4 align-top">
-                      <p className="text-sm text-body">Last sign-in: {formatDate(user.lastSignInAt)}</p>
-                      <p className="mt-1 text-sm text-body">Created: {formatDate(user.createdAt)}</p>
-                    </td>
-                    <td className="rounded-r-2xl border-y border-r border-line px-4 py-4 align-top">
-                      <Link className="admin-button-secondary" href={`/admin/users/${user.uid}`}>
-                        Open
-                      </Link>
-                    </td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="py-4">
+                      <p className="text-sm text-muted-foreground">
+                        Last:{" "}
+                        <span className="text-foreground">
+                          {formatDate(user.lastSignInAt)}
+                        </span>
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Joined:{" "}
+                        <span className="text-foreground">
+                          {formatDate(user.createdAt)}
+                        </span>
+                      </p>
+                    </TableCell>
+                    <TableCell className="py-4 text-right">
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/users/${user.uid}`}>
+                          Open
+                          <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                        </Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </SectionCard>

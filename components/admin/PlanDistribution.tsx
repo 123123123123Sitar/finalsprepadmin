@@ -1,24 +1,29 @@
 import type { PlanBreakdown } from "@/lib/admin/types";
 import { formatNumber, formatPercent } from "@/lib/admin/utils";
+import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 
 const PLAN_STYLES: Record<
   keyof PlanBreakdown,
-  { label: string; bar: string; tone: string }
+  { label: string; bar: string; dot: string; indicator: string }
 > = {
   learner: {
     label: "Learner (free)",
     bar: "bg-slate-400",
-    tone: "bg-slate-100 text-slate-700",
+    dot: "bg-slate-400",
+    indicator: "[&>div]:bg-slate-400",
   },
   pro: {
     label: "Pro",
-    bar: "bg-accent",
-    tone: "bg-accentSoft text-accent",
+    bar: "bg-primary",
+    dot: "bg-primary",
+    indicator: "[&>div]:bg-primary",
   },
   hacker: {
     label: "Hacker",
-    bar: "bg-positive",
-    tone: "bg-positiveSoft text-positive",
+    bar: "bg-emerald-500",
+    dot: "bg-emerald-500",
+    indicator: "[&>div]:bg-emerald-500",
   },
 };
 
@@ -35,38 +40,45 @@ export function PlanDistribution({
 
   return (
     <div className="space-y-5">
-      <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
+      <div className="flex h-3 overflow-hidden rounded-full bg-muted">
         {PLAN_ORDER.map((plan) => {
           const pct = (distribution[plan] / total) * 100;
           if (pct <= 0) return null;
           return (
             <div
               key={plan}
+              aria-label={`${PLAN_STYLES[plan].label}: ${formatPercent(pct)}`}
               className={PLAN_STYLES[plan].bar}
               style={{ width: `${pct}%` }}
-              aria-label={`${PLAN_STYLES[plan].label}: ${formatPercent(pct)}`}
               title={`${PLAN_STYLES[plan].label}: ${formatPercent(pct)}`}
             />
           );
         })}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="space-y-3">
         {PLAN_ORDER.map((plan) => {
           const count = distribution[plan];
           const pct = (count / total) * 100;
           const style = PLAN_STYLES[plan];
           return (
-            <div
-              key={plan}
-              className="rounded-2xl border border-line px-4 py-3"
-            >
-              <div className="flex items-center gap-2">
-                <span className={`inline-block h-2.5 w-2.5 rounded-full ${style.bar}`} />
-                <span className="text-sm font-medium text-ink">{style.label}</span>
+            <div key={plan} className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <span
+                    aria-hidden
+                    className={cn("inline-block h-2.5 w-2.5 rounded-full", style.dot)}
+                  />
+                  <span className="font-medium text-foreground">{style.label}</span>
+                </div>
+                <div className="text-muted-foreground">
+                  <span className="font-medium text-foreground">
+                    {formatNumber(count)}
+                  </span>{" "}
+                  · {formatPercent(pct)}
+                </div>
               </div>
-              <p className="mt-2 font-display text-2xl text-ink">{formatNumber(count)}</p>
-              <p className="text-xs text-mute">{formatPercent(pct)} of accounts</p>
+              <Progress value={pct} className={cn("h-2", style.indicator)} />
             </div>
           );
         })}

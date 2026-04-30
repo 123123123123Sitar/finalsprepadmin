@@ -1,6 +1,28 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Download, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { SectionCard } from "@/components/admin/SectionCard";
 
 type ChatHistoryEntry = {
   id: string;
@@ -60,7 +82,7 @@ export function ChatHistoryPullPanel({
 }) {
   const [reason, setReason] = useState("");
   const [limit, setLimit] = useState<string>("500");
-  const [sinceDays, setSinceDays] = useState<string>("");
+  const [sinceDays, setSinceDays] = useState<string>("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ChatHistoryPullResult | null>(null);
@@ -81,8 +103,12 @@ export function ChatHistoryPullPanel({
       const body: Record<string, unknown> = { reason: reason.trim() };
       const limitNumber = Number(limit);
       if (!Number.isNaN(limitNumber) && limitNumber > 0) body.limit = limitNumber;
-      const sinceNumber = Number(sinceDays);
-      if (!Number.isNaN(sinceNumber) && sinceNumber > 0) body.sinceDays = sinceNumber;
+      if (sinceDays !== "all") {
+        const sinceNumber = Number(sinceDays);
+        if (!Number.isNaN(sinceNumber) && sinceNumber > 0) {
+          body.sinceDays = sinceNumber;
+        }
+      }
 
       const response = await fetch(`/api/admin/users/${uid}/chat-history`, {
         method: "POST",
@@ -96,16 +122,17 @@ export function ChatHistoryPullPanel({
         // Body wasn't JSON — fall through to status-based error.
       }
       if (!response.ok) {
-        throw new Error(
-          json?.error || `Pull failed (HTTP ${response.status})`
-        );
+        throw new Error(json?.error || `Pull failed (HTTP ${response.status})`);
       }
       if (!json.result) {
         throw new Error("Pull succeeded but returned no result payload.");
       }
       setResult(json.result);
+      toast.success(`Pulled ${formatNumber(json.result.entryCount)} entries`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError(message);
+      toast.error("Failed to pull chat history", { description: message });
     } finally {
       setLoading(false);
     }
@@ -116,141 +143,146 @@ export function ChatHistoryPullPanel({
   const hasZeroEntries = result !== null && result.entryCount === 0;
 
   return (
-    <section className="admin-card p-6">
-      <div className="flex flex-col gap-3 border-b border-line pb-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h2 className="font-display text-2xl text-ink">Pull chat history</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-body">
-            Manually load recent AI chat entries for this user. Chat history is never
-            pulled automatically — each pull is audit-logged and charged against the
-            Firestore read budget, so include a reason and prefer a tight window.
+    <SectionCard
+      title="Pull chat history"
+      description="Manually load recent AI chat entries for this user. Each pull is audit-logged and charged against the Firestore read budget — include a reason and prefer a tight window."
+      actions={
+        <div className="text-right">
+          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+            Target UID
           </p>
-        </div>
-        <div className="text-right text-xs text-mute">
-          <p>Target UID</p>
           <code className="font-mono text-[11px]">{uid}</code>
         </div>
-      </div>
-
-      <div className="grid gap-4 pt-5 md:grid-cols-[2fr_1fr_1fr_auto]">
-        <label className="flex flex-col gap-1 text-sm text-body">
-          <span className="font-medium text-ink">Reason (required, audited)</span>
-          <input
-            className="admin-input"
-            value={reason}
+      }
+    >
+      <div className="grid gap-4 md:grid-cols-[2fr_1fr_1fr_auto]">
+        <div className="space-y-1.5">
+          <Label htmlFor="chat-pull-reason">Reason (required, audited)</Label>
+          <Input
+            id="chat-pull-reason"
             onChange={(event) => setReason(event.target.value)}
             placeholder="Support ticket #, suspected abuse, user-requested export…"
+            value={reason}
           />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-body">
-          <span className="font-medium text-ink">Max entries</span>
-          <select
-            className="admin-select"
-            value={limit}
-            onChange={(event) => setLimit(event.target.value)}
-          >
-            <option value="100">100</option>
-            <option value="250">250</option>
-            <option value="500">500 (default)</option>
-            <option value="1000">1,000</option>
-            <option value="2000">2,000 (hard cap)</option>
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-body">
-          <span className="font-medium text-ink">Since (days)</span>
-          <select
-            className="admin-select"
-            value={sinceDays}
-            onChange={(event) => setSinceDays(event.target.value)}
-          >
-            <option value="">All history</option>
-            <option value="7">Last 7 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-            <option value="180">Last 180 days</option>
-          </select>
-        </label>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Max entries</Label>
+          <Select onValueChange={(value) => setLimit(value)} value={limit}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="100">100</SelectItem>
+              <SelectItem value="250">250</SelectItem>
+              <SelectItem value="500">500 (default)</SelectItem>
+              <SelectItem value="1000">1,000</SelectItem>
+              <SelectItem value="2000">2,000 (hard cap)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Since (days)</Label>
+          <Select onValueChange={(value) => setSinceDays(value)} value={sinceDays}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All history</SelectItem>
+              <SelectItem value="7">Last 7 days</SelectItem>
+              <SelectItem value="30">Last 30 days</SelectItem>
+              <SelectItem value="90">Last 90 days</SelectItem>
+              <SelectItem value="180">Last 180 days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="flex items-end">
-          <button
-            type="button"
-            className="admin-button-accent w-full md:w-auto"
+          <Button
+            className="w-full md:w-auto"
             disabled={!canPull}
             onClick={handlePull}
-            aria-disabled={!canPull}
+            type="button"
           >
-            {loading ? "Pulling…" : "Pull chat history"}
-          </button>
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Pulling…
+              </>
+            ) : (
+              "Pull chat history"
+            )}
+          </Button>
         </div>
       </div>
 
       {error ? (
-        <p className="admin-toast-enter mt-4 rounded-2xl bg-dangerSoft px-4 py-3 text-sm text-danger" role="alert">
-          {error}
-        </p>
+        <Alert className="mt-4" variant="destructive">
+          <AlertTitle>Pull failed</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
 
       {hasZeroEntries ? (
-        <p className="admin-toast-enter mt-4 rounded-2xl border border-line bg-slate-50 px-4 py-3 text-sm text-body">
-          No AI history found for this user
-          {sinceDays ? ` in the last ${sinceDays} days` : ""}. They may not have
-          used any AI features yet — confirm by checking{" "}
-          <code className="font-mono text-xs">users/{uid}/aiHistory</code> in
-          Firestore directly.
-        </p>
+        <Alert className="mt-4">
+          <AlertTitle>No history found</AlertTitle>
+          <AlertDescription>
+            No AI history found for this user
+            {sinceDays !== "all" ? ` in the last ${sinceDays} days` : ""}. They may not
+            have used any AI features yet — confirm by checking{" "}
+            <code className="font-mono text-xs">users/{uid}/aiHistory</code> in
+            Firestore.
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       {result && result.entryCount > 0 ? (
-        <div className="admin-toast-enter mt-6 space-y-5">
-          <div className="grid gap-3 rounded-2xl border border-line bg-slate-50 p-4 text-sm text-body md:grid-cols-5">
+        <div className="mt-6 space-y-5">
+          <div className="grid gap-3 rounded-lg border bg-muted/30 p-4 md:grid-cols-5">
             <div>
-              <p className="text-xs uppercase tracking-wide text-mute">Entries</p>
-              <p className="mt-1 font-display text-2xl text-ink">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Entries
+              </p>
+              <p className="mt-1 font-display text-2xl font-semibold text-foreground">
                 {formatNumber(result.entryCount)}
               </p>
               {result.truncated ? (
-                <p className="mt-1 text-xs text-warning">
-                  Capped — raise limit or narrow the window.
+                <p className="mt-1 text-xs text-amber-600">
+                  Capped — raise limit or narrow window.
                 </p>
               ) : null}
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-mute">
-                API tokens (in + out)
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                API tokens
               </p>
-              <p className="mt-1 font-display text-2xl text-ink">
+              <p className="mt-1 font-display text-2xl font-semibold text-foreground">
                 {formatNumber(totalApiTokens)}
               </p>
-              <p className="mt-1 text-xs text-mute">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {formatNumber(result.totalInputTokens)} in ·{" "}
                 {formatNumber(result.totalOutputTokens)} out
               </p>
-              {result.entriesMissingRawTokens > 0 ? (
-                <p className="mt-1 text-xs text-warning">
-                  {formatNumber(result.entriesMissingRawTokens)} older
-                  entries lack raw tokens.
-                </p>
-              ) : null}
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-mute">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
                 Billing units
               </p>
-              <p className="mt-1 font-display text-2xl text-ink">
+              <p className="mt-1 font-display text-2xl font-semibold text-foreground">
                 {formatNumber(result.totalTokens)}
-              </p>
-              <p className="mt-1 text-xs text-mute">
-                Cost-weighted (floor + tax + multipliers).
               </p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-mute">Est. cost</p>
-              <p className="mt-1 font-display text-2xl text-ink">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Est. cost
+              </p>
+              <p className="mt-1 font-display text-2xl font-semibold text-foreground">
                 {formatUsd(result.totalCostUsd)}
               </p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-mute">Window</p>
-              <p className="mt-1 text-xs leading-5 text-body">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Window
+              </p>
+              <p className="mt-1 text-xs leading-5 text-foreground">
                 {formatDate(result.firstAt)} →<br />
                 {formatDate(result.lastAt)}
               </p>
@@ -259,77 +291,87 @@ export function ChatHistoryPullPanel({
 
           <div className="flex flex-wrap items-center gap-3">
             {downloadUrl ? (
-              <a
-                className="admin-button-secondary"
-                href={downloadUrl}
-                download={`chat-history-${uid}-${new Date(result.pulledAt)
-                  .toISOString()
-                  .slice(0, 19)
-                  .replace(/:/g, "-")}.json`}
-              >
-                Download JSON
-              </a>
+              <Button asChild variant="outline">
+                <a
+                  download={`chat-history-${uid}-${new Date(result.pulledAt)
+                    .toISOString()
+                    .slice(0, 19)
+                    .replace(/:/g, "-")}.json`}
+                  href={downloadUrl}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download JSON
+                </a>
+              </Button>
             ) : null}
-            <button
-              type="button"
-              className="admin-button-secondary"
+            <Button
               onClick={() => {
                 setResult(null);
                 setReason("");
               }}
+              type="button"
+              variant="outline"
             >
               Clear
-            </button>
-            <p className="text-xs text-mute">
+            </Button>
+            <p className="text-xs text-muted-foreground">
               Pulled {new Date(result.pulledAt).toLocaleString()} · {userLabel}
             </p>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-line">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-[0.16em] text-mute">
-                <tr>
-                  <th className="px-4 py-3 text-left">When</th>
-                  <th className="px-4 py-3 text-left">Kind</th>
-                  <th className="px-4 py-3 text-left">Model</th>
-                  <th className="px-4 py-3 text-right">In / Out</th>
-                  <th className="px-4 py-3 text-right">Billed</th>
-                  <th className="px-4 py-3 text-right">Cost</th>
-                  <th className="px-4 py-3 text-left">Preview</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
+          <div className="overflow-hidden rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>When</TableHead>
+                  <TableHead>Kind</TableHead>
+                  <TableHead>Model</TableHead>
+                  <TableHead className="text-right">In / Out</TableHead>
+                  <TableHead className="text-right">Billed</TableHead>
+                  <TableHead className="text-right">Cost</TableHead>
+                  <TableHead>Preview</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {result.entries.slice(0, 25).map((entry) => (
-                  <tr key={entry.id} className="align-top">
-                    <td className="px-4 py-3 text-body">{formatDate(entry.createdAt)}</td>
-                    <td className="px-4 py-3 text-body">{entry.kind || "—"}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-body">{entry.model || "—"}</td>
-                    <td className="px-4 py-3 text-right text-body">
+                  <TableRow key={entry.id} className="align-top">
+                    <TableCell>{formatDate(entry.createdAt)}</TableCell>
+                    <TableCell>{entry.kind || "—"}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {entry.model || "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
                       {entry.inputTokens === null && entry.outputTokens === null
                         ? "—"
                         : `${formatNumber(entry.inputTokens || 0)} / ${formatNumber(entry.outputTokens || 0)}`}
-                    </td>
-                    <td className="px-4 py-3 text-right text-body">{formatNumber(entry.tokens)}</td>
-                    <td className="px-4 py-3 text-right text-body">{formatUsd(entry.costUsd)}</td>
-                    <td className="px-4 py-3 text-body">
-                      <p className="line-clamp-2 text-ink">{entry.promptPreview || "—"}</p>
-                      <p className="mt-1 line-clamp-2 text-mute">
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatNumber(entry.tokens)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatUsd(entry.costUsd)}
+                    </TableCell>
+                    <TableCell>
+                      <p className="line-clamp-2 text-foreground">
+                        {entry.promptPreview || "—"}
+                      </p>
+                      <p className="mt-1 line-clamp-2 text-muted-foreground">
                         {entry.responsePreview || "—"}
                       </p>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
           {result.entries.length > 25 ? (
-            <p className="text-xs text-mute">
+            <p className="text-xs text-muted-foreground">
               Showing the 25 most recent entries — download the JSON for all{" "}
               {formatNumber(result.entryCount)}.
             </p>
           ) : null}
         </div>
       ) : null}
-    </section>
+    </SectionCard>
   );
 }

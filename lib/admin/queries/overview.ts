@@ -1,6 +1,5 @@
 import type { QuerySnapshot } from "firebase-admin/firestore";
 import { requireDb, collections } from "@/lib/admin/firestore";
-import { getStripeClient } from "@/lib/admin/stripe";
 import type {
   AdminOverviewMetrics,
   AppBillingProfile,
@@ -50,8 +49,6 @@ async function getBillingProfiles() {
       currentPeriodEnd: data.currentPeriodEnd,
       cancelAt: data.cancelAt ?? null,
       canceledAt: data.canceledAt ?? null,
-      stripeCustomerId: data.stripeCustomerId,
-      stripeSubscriptionId: data.stripeSubscriptionId,
       updatedAt: data.updatedAt,
     });
   }
@@ -206,87 +203,6 @@ async function getUsageWindow() {
   };
 }
 
-async function countInvoicesByStatus(
-  stripe: NonNullable<ReturnType<typeof getStripeClient>>,
-  status: "open" | "uncollectible"
-): Promise<number> {
-  let total = 0;
-  let startingAfter: string | undefined;
-  do {
-    const page = await stripe.invoices.list({
-      status,
-      limit: 100,
-      starting_after: startingAfter,
-    });
-    total += page.data.length;
-    if (!page.has_more) break;
-    startingAfter = page.data.at(-1)?.id;
-  } while (startingAfter);
-  return total;
-}
-
-async function getRevenueMetrics() {
-  const stripe = getStripeClient();
-  if (!stripe) {
-    return {
-      mrr: 0,
-      arr: 0,
-      openInvoices: 0,
-      failedPayments: 0,
-      activeSubscriptions: 0,
-      cancelAtPeriodEnd: 0,
-    };
-  }
-
-  let startingAfter: string | undefined;
-  let activeSubscriptions = 0;
-  let cancelAtPeriodEnd = 0;
-  let mrr = 0;
-  do {
-    const page = await stripe.subscriptions.list({
-      status: "all",
-      limit: 100,
-      starting_after: startingAfter,
-      expand: ["data.items.data.price"],
-    });
-
-    for (const subscription of page.data) {
-      const active = subscription.status === "active" || subscription.status === "trialing";
-      if (active) activeSubscriptions += 1;
-      if (subscription.cancel_at_period_end) cancelAtPeriodEnd += 1;
-      for (const item of subscription.items.data) {
-        const amount = (item.price.unit_amount || 0) / 100;
-        const recurring = item.price.recurring;
-        if (!active || !recurring) continue;
-        if (recurring.interval === "year") {
-          mrr += amount / 12;
-        } else if (recurring.interval === "month") {
-          mrr += recurring.interval_count && recurring.interval_count > 1
-            ? amount / recurring.interval_count
-            : amount;
-        }
-      }
-    }
-
-    if (!page.has_more) break;
-    startingAfter = page.data.at(-1)?.id;
-  } while (startingAfter);
-
-  const [openInvoices, failedPayments] = await Promise.all([
-    countInvoicesByStatus(stripe, "open"),
-    countInvoicesByStatus(stripe, "uncollectible"),
-  ]);
-
-  return {
-    mrr: Number(mrr.toFixed(2)),
-    arr: Number((mrr * 12).toFixed(2)),
-    openInvoices,
-    failedPayments,
-    activeSubscriptions,
-    cancelAtPeriodEnd,
-  };
-}
-
 function buildPlanDistribution(
   billingProfiles: AppBillingProfile[],
   totalUsers: number
@@ -312,13 +228,12 @@ function buildCohortBreakdown(billingProfiles: AppBillingProfile[]) {
 
 export async function getOverviewMetrics(): Promise<AdminOverviewMetrics> {
   const db = requireDb();
-  const [totalUsers, billingProfiles, events, usageWindow, revenue, suspiciousUsersSnap, auditSnap, contentMetaSnap, supportHotUsersSnap] =
+  const [totalUsers, billingProfiles, events, usageWindow, suspiciousUsersSnap, auditSnap, contentMetaSnap, supportHotUsersSnap] =
     await Promise.all([
       countAllUsers(),
       getBillingProfiles(),
       fetchRecentEvents(30),
       getUsageWindow(),
-      getRevenueMetrics(),
       db
         .collection(collections.adminUsers)
         .where("flags.suspicious", "==", true)
@@ -372,8 +287,6 @@ export async function getOverviewMetrics(): Promise<AdminOverviewMetrics> {
   const freeToPaidConversionRate =
     totalUsers === 0 ? 0 : (totalPaidUsers / totalUsers) * 100;
 
-  const arpuPaid =
-    totalPaidUsers === 0 ? 0 : Number((revenue.mrr / totalPaidUsers).toFixed(2));
   const costPerActiveMau =
     mau === 0 ? 0 : Number((usageWindow.estimatedAiCost30d / mau).toFixed(4));
 
@@ -398,9 +311,7 @@ export async function getOverviewMetrics(): Promise<AdminOverviewMetrics> {
     totalMessages30d: usageWindow.totalMessages30d,
     totalAiRequests30d: usageWindow.totalAiRequests30d,
     estimatedAiCost30d: usageWindow.estimatedAiCost30d,
-    arpuPaid,
     costPerActiveMau,
-    revenue,
     popularCourses,
     popularUnits,
     featureUsage,
@@ -409,7 +320,6 @@ export async function getOverviewMetrics(): Promise<AdminOverviewMetrics> {
     supportHotUsers: supportHotUsersSnap?.size ?? 0,
     systemStatus: {
       firebaseAdmin: true,
-      stripe: Boolean(getStripeClient()),
       contentSourceAvailable: contentSourceAvailable(),
       lastContentHealthSyncAt: contentMetaSnap.data()?.syncedAt,
     },

@@ -1,4 +1,27 @@
+"use client";
+
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import { formatNumber, formatUsd } from "@/lib/admin/utils";
+
+const chartConfig = {
+  value: {
+    label: "Value",
+    color: "hsl(var(--primary))",
+  },
+} satisfies ChartConfig;
 
 export function SimpleBarChart({
   items,
@@ -7,27 +30,54 @@ export function SimpleBarChart({
   items: Array<{ name: string; value: number }>;
   mode?: "count" | "usd";
 }) {
-  const max = Math.max(...items.map((item) => item.value), 1);
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">No data available yet.</p>
+    );
+  }
+
+  const formatValue = (value: number) =>
+    mode === "usd" ? formatUsd(value) : formatNumber(value);
 
   return (
-    <div className="space-y-4">
-      {items.map((item) => (
-        <div key={item.name} className="space-y-2">
-          <div className="flex items-center justify-between gap-4 text-sm">
-            <span className="truncate text-body">{item.name}</span>
-            <span className="font-medium text-ink">
-              {mode === "usd" ? formatUsd(item.value) : formatNumber(item.value)}
-            </span>
-          </div>
-          <div className="h-2 rounded-full bg-slate-100">
-            <div
-              className="h-2 rounded-full bg-gradient-to-r from-accent to-amber-400"
-              style={{ width: `${Math.max((item.value / max) * 100, 4)}%` }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
+    <ChartContainer config={chartConfig} className="h-[240px] w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={items} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+          <CartesianGrid vertical={false} strokeDasharray="3 3" />
+          <XAxis
+            dataKey="name"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            interval={0}
+            fontSize={11}
+          />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            fontSize={11}
+            tickFormatter={(value: number) => formatValue(value)}
+            width={60}
+          />
+          <ChartTooltip
+            cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
+            content={
+              <ChartTooltipContent
+                formatter={(value) => formatValue(Number(value))}
+                indicator="dot"
+              />
+            }
+          />
+          <Bar
+            dataKey="value"
+            fill="var(--color-value)"
+            radius={[6, 6, 0, 0]}
+            maxBarSize={48}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    </ChartContainer>
   );
 }
 

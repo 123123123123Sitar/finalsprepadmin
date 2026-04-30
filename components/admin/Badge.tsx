@@ -1,19 +1,37 @@
 import type { ReactNode } from "react";
+import { Badge as ShadcnBadge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
-const styles = {
-  neutral: "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200",
-  success: "bg-positiveSoft text-positive ring-1 ring-inset ring-positive/20",
-  warning: "bg-warningSoft text-warning ring-1 ring-inset ring-warning/25",
-  danger: "bg-dangerSoft text-danger ring-1 ring-inset ring-danger/25",
-  accent: "bg-accentSoft text-accent ring-1 ring-inset ring-accent/25",
-} as const;
+type Tone = "neutral" | "success" | "warning" | "danger" | "accent";
+
+const toneClass: Record<Tone, string> = {
+  neutral: "",
+  success: "border-transparent bg-emerald-50 text-emerald-700 hover:bg-emerald-50",
+  warning: "border-transparent bg-amber-50 text-amber-700 hover:bg-amber-50",
+  danger: "",
+  accent: "",
+};
+
+const toneVariant: Record<Tone, "default" | "secondary" | "destructive" | "outline"> = {
+  neutral: "secondary",
+  success: "outline",
+  warning: "outline",
+  danger: "destructive",
+  accent: "default",
+};
 
 export function Badge({
   children,
   tone = "neutral",
+  className,
 }: {
   children: ReactNode;
-  tone?: keyof typeof styles;
+  tone?: Tone;
+  className?: string;
 }) {
-  return <span className={`badge ${styles[tone]}`}>{children}</span>;
+  return (
+    <ShadcnBadge variant={toneVariant[tone]} className={cn(toneClass[tone], className)}>
+      {children}
+    </ShadcnBadge>
+  );
 }

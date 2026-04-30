@@ -1,6 +1,22 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Loader2, Plus, Save } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { SectionCard } from "@/components/admin/SectionCard";
 import type { FeatureFlagRecord, PlatformSettings } from "@/lib/admin/types";
 
@@ -32,6 +48,78 @@ function parseRolloutValue(
     .filter(Boolean);
 }
 
+function ToggleRow({
+  label,
+  checked,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2 text-sm">
+      <span className="text-foreground">{label}</span>
+      <Switch checked={checked} disabled={disabled} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
+function NumberField({
+  id,
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  id: string;
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        disabled={disabled}
+        id={id}
+        inputMode="numeric"
+        onChange={(event) => onChange(Number(event.target.value || 0))}
+        value={value}
+      />
+    </div>
+  );
+}
+
+function TextField({
+  id,
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        disabled={disabled}
+        id={id}
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      />
+    </div>
+  );
+}
+
 export function SettingsEditor({
   settings,
   featureFlags,
@@ -46,7 +134,6 @@ export function SettingsEditor({
   const [flags, setFlags] = useState<EditableFlag[]>(
     featureFlags.map(toEditableFlag)
   );
-  const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function updateFlag(index: number, next: Partial<EditableFlag>) {
@@ -58,13 +145,10 @@ export function SettingsEditor({
   }
 
   function saveSettings() {
-    setMessage(null);
     startTransition(async () => {
       const response = await fetch("/api/admin/settings", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           reason,
           settings: {
@@ -83,19 +167,24 @@ export function SettingsEditor({
         }),
       });
 
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      setMessage(response.ok ? "Platform settings saved." : payload.error || "Settings update failed.");
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (response.ok) {
+        toast.success("Platform settings saved");
+      } else {
+        toast.error("Failed to save settings", {
+          description: payload.error || "Unknown error",
+        });
+      }
     });
   }
 
   function saveFlag(flag: EditableFlag) {
-    setMessage(null);
     startTransition(async () => {
       const response = await fetch("/api/admin/settings", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           reason,
           featureFlag: {
@@ -112,8 +201,16 @@ export function SettingsEditor({
         }),
       });
 
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      setMessage(response.ok ? `Feature flag "${flag.key}" saved.` : payload.error || "Feature flag update failed.");
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (response.ok) {
+        toast.success(`Feature flag "${flag.key}" saved`);
+      } else {
+        toast.error(`Failed to save flag "${flag.key}"`, {
+          description: payload.error || "Unknown error",
+        });
+      }
     });
   }
 
@@ -121,551 +218,446 @@ export function SettingsEditor({
     <div className="space-y-6">
       <SectionCard
         title="Platform Controls"
-        description="These values live in Firestore and should be treated as the operational source of truth for the admin system and future student-app feature gating."
+        description="These values live in Firestore and are the operational source of truth for the admin system and student-app feature gating."
         actions={
-          <div className="flex flex-wrap gap-3">
-            <input
-              className="admin-input min-w-[260px]"
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              aria-label="Change reason for audit log"
+              className="min-w-[260px]"
               disabled={!canWrite || isPending}
               onChange={(event) => setReason(event.target.value)}
               placeholder="Change reason for audit log"
               value={reason}
             />
-            <button className="admin-button" disabled={!canWrite || isPending || reason.trim().length < 3} onClick={saveSettings} type="button">
+            <Button
+              disabled={!canWrite || isPending || reason.trim().length < 3}
+              onClick={saveSettings}
+              type="button"
+            >
+              {isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
               Save settings
-            </button>
+            </Button>
           </div>
         }
       >
-        {message ? <div className="mb-5 rounded-2xl bg-accentSoft px-4 py-3 text-sm text-accent">{message}</div> : null}
-        <div className="grid gap-6 xl:grid-cols-2">
-          <div className="rounded-2xl border border-line p-5">
-            <h3 className="font-display text-xl text-ink">Announcements and maintenance</h3>
-            <div className="mt-4 space-y-4">
-              <label className="flex items-center gap-3 rounded-xl border border-line px-3 py-2 text-sm text-ink">
-                <input
-                  checked={draft.maintenanceMode}
-                  disabled={!canWrite}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, maintenanceMode: event.target.checked }))
-                  }
-                  type="checkbox"
-                />
-                <span>Maintenance mode</span>
-              </label>
-              <label className="flex items-center gap-3 rounded-xl border border-line px-3 py-2 text-sm text-ink">
-                <input
-                  checked={draft.announcementBanner.enabled}
-                  disabled={!canWrite}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      announcementBanner: {
-                        ...current.announcementBanner,
-                        enabled: event.target.checked,
-                      },
-                    }))
-                  }
-                  type="checkbox"
-                />
-                <span>Announcement banner enabled</span>
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Banner text</span>
-                <textarea
-                  className="admin-textarea"
-                  disabled={!canWrite}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      announcementBanner: {
-                        ...current.announcementBanner,
-                        text: event.target.value,
-                      },
-                    }))
-                  }
-                  value={draft.announcementBanner.text}
-                />
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Banner tone</span>
-                <select
-                  className="admin-select"
-                  disabled={!canWrite}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      announcementBanner: {
-                        ...current.announcementBanner,
-                        tone: event.target.value as PlatformSettings["announcementBanner"]["tone"],
-                      },
-                    }))
-                  }
-                  value={draft.announcementBanner.tone}
-                >
-                  <option value="info">info</option>
-                  <option value="warning">warning</option>
-                  <option value="success">success</option>
-                  <option value="danger">danger</option>
-                </select>
-              </label>
-            </div>
-          </div>
+        <Tabs defaultValue="announcements" className="space-y-6">
+          <TabsList className="flex w-full flex-wrap justify-start">
+            <TabsTrigger value="announcements">Announcements</TabsTrigger>
+            <TabsTrigger value="ai">AI & credits</TabsTrigger>
+            <TabsTrigger value="commercial">Commercial</TabsTrigger>
+            <TabsTrigger value="abuse">Abuse & support</TabsTrigger>
+          </TabsList>
 
-          <div className="rounded-2xl border border-line p-5">
-            <h3 className="font-display text-xl text-ink">AI and quota defaults</h3>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Provider</span>
-                <select
-                  className="admin-select"
+          <TabsContent value="announcements" className="space-y-4">
+            <ToggleRow
+              checked={draft.maintenanceMode}
+              disabled={!canWrite}
+              label="Maintenance mode"
+              onChange={(value) =>
+                setDraft((current) => ({ ...current, maintenanceMode: value }))
+              }
+            />
+            <ToggleRow
+              checked={draft.announcementBanner.enabled}
+              disabled={!canWrite}
+              label="Announcement banner enabled"
+              onChange={(value) =>
+                setDraft((current) => ({
+                  ...current,
+                  announcementBanner: {
+                    ...current.announcementBanner,
+                    enabled: value,
+                  },
+                }))
+              }
+            />
+            <div className="space-y-1.5">
+              <Label htmlFor="banner-text">Banner text</Label>
+              <Textarea
+                disabled={!canWrite}
+                id="banner-text"
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    announcementBanner: {
+                      ...current.announcementBanner,
+                      text: event.target.value,
+                    },
+                  }))
+                }
+                value={draft.announcementBanner.text}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Banner tone</Label>
+              <Select
+                disabled={!canWrite}
+                onValueChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    announcementBanner: {
+                      ...current.announcementBanner,
+                      tone: value as PlatformSettings["announcementBanner"]["tone"],
+                    },
+                  }))
+                }
+                value={draft.announcementBanner.tone}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="info">info</SelectItem>
+                  <SelectItem value="warning">warning</SelectItem>
+                  <SelectItem value="success">success</SelectItem>
+                  <SelectItem value="danger">danger</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="ai" className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>AI provider</Label>
+                <Select
                   disabled={!canWrite}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     setDraft((current) => ({
                       ...current,
                       ai: {
                         ...current.ai,
-                        provider: event.target.value as PlatformSettings["ai"]["provider"],
+                        provider: value as PlatformSettings["ai"]["provider"],
                       },
                     }))
                   }
                   value={draft.ai.provider}
                 >
-                  <option value="anthropic">anthropic</option>
-                  <option value="google">google</option>
-                  <option value="hybrid">hybrid</option>
-                </select>
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Chat model</span>
-                <input
-                  className="admin-input"
-                  disabled={!canWrite}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      ai: {
-                        ...current.ai,
-                        chatModel: event.target.value,
-                      },
-                    }))
-                  }
-                  value={draft.ai.chatModel}
-                />
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Explain model</span>
-                <input
-                  className="admin-input"
-                  disabled={!canWrite}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      ai: {
-                        ...current.ai,
-                        explainModel: event.target.value,
-                      },
-                    }))
-                  }
-                  value={draft.ai.explainModel}
-                />
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Hard daily token reserve</span>
-                <input
-                  className="admin-input"
-                  disabled={!canWrite}
-                  inputMode="numeric"
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      ai: {
-                        ...current.ai,
-                        hardDailyTokenReserve: Number(event.target.value || 0),
-                      },
-                    }))
-                  }
-                  value={draft.ai.hardDailyTokenReserve}
-                />
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Learner monthly tokens</span>
-                <input
-                  className="admin-input"
-                  disabled={!canWrite}
-                  inputMode="numeric"
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      credits: {
-                        ...current.credits,
-                        learnerMonthlyTokens: Number(event.target.value || 0),
-                      },
-                    }))
-                  }
-                  value={draft.credits.learnerMonthlyTokens}
-                />
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Pro monthly tokens</span>
-                <input
-                  className="admin-input"
-                  disabled={!canWrite}
-                  inputMode="numeric"
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      credits: {
-                        ...current.credits,
-                        proMonthlyTokens: Number(event.target.value || 0),
-                      },
-                    }))
-                  }
-                  value={draft.credits.proMonthlyTokens}
-                />
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Hacker monthly tokens</span>
-                <input
-                  className="admin-input"
-                  disabled={!canWrite}
-                  inputMode="numeric"
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      credits: {
-                        ...current.credits,
-                        hackerMonthlyTokens: Number(event.target.value || 0),
-                      },
-                    }))
-                  }
-                  value={draft.credits.hackerMonthlyTokens}
-                />
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Pro daily messages</span>
-                <input
-                  className="admin-input"
-                  disabled={!canWrite}
-                  inputMode="numeric"
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      credits: {
-                        ...current.credits,
-                        proDailyMessages: Number(event.target.value || 0),
-                      },
-                    }))
-                  }
-                  value={draft.credits.proDailyMessages}
-                />
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Hacker daily messages</span>
-                <input
-                  className="admin-input"
-                  disabled={!canWrite}
-                  inputMode="numeric"
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      credits: {
-                        ...current.credits,
-                        hackerDailyMessages: Number(event.target.value || 0),
-                      },
-                    }))
-                  }
-                  value={draft.credits.hackerDailyMessages}
-                />
-              </label>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="anthropic">anthropic</SelectItem>
+                    <SelectItem value="google">google</SelectItem>
+                    <SelectItem value="hybrid">hybrid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <TextField
+                id="chat-model"
+                label="Chat model"
+                disabled={!canWrite}
+                value={draft.ai.chatModel}
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    ai: { ...current.ai, chatModel: value },
+                  }))
+                }
+              />
+              <TextField
+                id="explain-model"
+                label="Explain model"
+                disabled={!canWrite}
+                value={draft.ai.explainModel}
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    ai: { ...current.ai, explainModel: value },
+                  }))
+                }
+              />
+              <NumberField
+                id="hard-token-reserve"
+                label="Hard daily token reserve"
+                disabled={!canWrite}
+                value={draft.ai.hardDailyTokenReserve}
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    ai: { ...current.ai, hardDailyTokenReserve: value },
+                  }))
+                }
+              />
+              <NumberField
+                id="learner-monthly"
+                label="Learner monthly tokens"
+                disabled={!canWrite}
+                value={draft.credits.learnerMonthlyTokens}
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    credits: { ...current.credits, learnerMonthlyTokens: value },
+                  }))
+                }
+              />
+              <NumberField
+                id="pro-monthly"
+                label="Pro monthly tokens"
+                disabled={!canWrite}
+                value={draft.credits.proMonthlyTokens}
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    credits: { ...current.credits, proMonthlyTokens: value },
+                  }))
+                }
+              />
+              <NumberField
+                id="hacker-monthly"
+                label="Hacker monthly tokens"
+                disabled={!canWrite}
+                value={draft.credits.hackerMonthlyTokens}
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    credits: { ...current.credits, hackerMonthlyTokens: value },
+                  }))
+                }
+              />
+              <NumberField
+                id="pro-daily"
+                label="Pro daily messages"
+                disabled={!canWrite}
+                value={draft.credits.proDailyMessages}
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    credits: { ...current.credits, proDailyMessages: value },
+                  }))
+                }
+              />
+              <NumberField
+                id="hacker-daily"
+                label="Hacker daily messages"
+                disabled={!canWrite}
+                value={draft.credits.hackerDailyMessages}
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    credits: { ...current.credits, hackerDailyMessages: value },
+                  }))
+                }
+              />
             </div>
-          </div>
+          </TabsContent>
 
-          <div className="rounded-2xl border border-line p-5">
-            <h3 className="font-display text-xl text-ink">Commercial and release policy</h3>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <label className="flex items-center gap-3 rounded-xl border border-line px-3 py-2 text-sm text-ink">
-                <input
-                  checked={draft.trials.enabled}
+          <TabsContent value="commercial" className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <ToggleRow
+                checked={draft.trials.enabled}
+                disabled={!canWrite}
+                label="Free trial enabled"
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    trials: { ...current.trials, enabled: value },
+                  }))
+                }
+              />
+              <NumberField
+                id="trial-days"
+                label="Free trial days"
+                disabled={!canWrite}
+                value={draft.trials.freeTrialDays}
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    trials: { ...current.trials, freeTrialDays: value },
+                  }))
+                }
+              />
+              <ToggleRow
+                checked={draft.pricing.showAnnualPromo}
+                disabled={!canWrite}
+                label="Show annual promo"
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    pricing: { ...current.pricing, showAnnualPromo: value },
+                  }))
+                }
+              />
+              <TextField
+                id="default-checkout"
+                label="Default checkout plan"
+                disabled={!canWrite}
+                value={draft.pricing.defaultCheckoutPlan}
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    pricing: { ...current.pricing, defaultCheckoutPlan: value },
+                  }))
+                }
+              />
+              <ToggleRow
+                checked={draft.release.waitlistMode}
+                disabled={!canWrite}
+                label="Waitlist mode"
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    release: { ...current.release, waitlistMode: value },
+                  }))
+                }
+              />
+              <div className="space-y-1.5">
+                <Label>Beta access mode</Label>
+                <Select
                   disabled={!canWrite}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      trials: {
-                        ...current.trials,
-                        enabled: event.target.checked,
-                      },
-                    }))
-                  }
-                  type="checkbox"
-                />
-                <span>Free trial enabled</span>
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Free trial days</span>
-                <input
-                  className="admin-input"
-                  disabled={!canWrite}
-                  inputMode="numeric"
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      trials: {
-                        ...current.trials,
-                        freeTrialDays: Number(event.target.value || 0),
-                      },
-                    }))
-                  }
-                  value={draft.trials.freeTrialDays}
-                />
-              </label>
-              <label className="flex items-center gap-3 rounded-xl border border-line px-3 py-2 text-sm text-ink">
-                <input
-                  checked={draft.pricing.showAnnualPromo}
-                  disabled={!canWrite}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      pricing: {
-                        ...current.pricing,
-                        showAnnualPromo: event.target.checked,
-                      },
-                    }))
-                  }
-                  type="checkbox"
-                />
-                <span>Show annual promo</span>
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Default checkout plan</span>
-                <input
-                  className="admin-input"
-                  disabled={!canWrite}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      pricing: {
-                        ...current.pricing,
-                        defaultCheckoutPlan: event.target.value,
-                      },
-                    }))
-                  }
-                  value={draft.pricing.defaultCheckoutPlan}
-                />
-              </label>
-              <label className="flex items-center gap-3 rounded-xl border border-line px-3 py-2 text-sm text-ink">
-                <input
-                  checked={draft.release.waitlistMode}
-                  disabled={!canWrite}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     setDraft((current) => ({
                       ...current,
                       release: {
                         ...current.release,
-                        waitlistMode: event.target.checked,
-                      },
-                    }))
-                  }
-                  type="checkbox"
-                />
-                <span>Waitlist mode</span>
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Beta access mode</span>
-                <select
-                  className="admin-select"
-                  disabled={!canWrite}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      release: {
-                        ...current.release,
-                        betaAccessMode: event.target.value as PlatformSettings["release"]["betaAccessMode"],
+                        betaAccessMode: value as PlatformSettings["release"]["betaAccessMode"],
                       },
                     }))
                   }
                   value={draft.release.betaAccessMode}
                 >
-                  <option value="open">open</option>
-                  <option value="allowlist">allowlist</option>
-                  <option value="disabled">disabled</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-3 rounded-xl border border-line px-3 py-2 text-sm text-ink">
-                <input
-                  checked={draft.release.studentAppReadOnly}
-                  disabled={!canWrite}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      release: {
-                        ...current.release,
-                        studentAppReadOnly: event.target.checked,
-                      },
-                    }))
-                  }
-                  type="checkbox"
-                />
-                <span>Student app read-only mode</span>
-              </label>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">open</SelectItem>
+                    <SelectItem value="allowlist">allowlist</SelectItem>
+                    <SelectItem value="disabled">disabled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <ToggleRow
+                checked={draft.release.studentAppReadOnly}
+                disabled={!canWrite}
+                label="Student app read-only mode"
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    release: { ...current.release, studentAppReadOnly: value },
+                  }))
+                }
+              />
             </div>
-          </div>
+          </TabsContent>
 
-          <div className="rounded-2xl border border-line p-5">
-            <h3 className="font-display text-xl text-ink">Abuse and support policy</h3>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Requests per minute hard cap</span>
-                <input
-                  className="admin-input"
+          <TabsContent value="abuse" className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <NumberField
+                id="rpm"
+                label="Requests per minute hard cap"
+                disabled={!canWrite}
+                value={draft.abuse.hardRequestsPerMinute}
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    abuse: { ...current.abuse, hardRequestsPerMinute: value },
+                  }))
+                }
+              />
+              <NumberField
+                id="device-threshold"
+                label="Shared-device threshold"
+                disabled={!canWrite}
+                value={draft.abuse.sharedAccountDeviceThreshold}
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    abuse: { ...current.abuse, sharedAccountDeviceThreshold: value },
+                  }))
+                }
+              />
+              <NumberField
+                id="coupon-threshold"
+                label="Coupon abuse threshold"
+                disabled={!canWrite}
+                value={draft.abuse.couponAbuseThreshold}
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    abuse: { ...current.abuse, couponAbuseThreshold: value },
+                  }))
+                }
+              />
+              <ToggleRow
+                checked={draft.referrals.enabled}
+                disabled={!canWrite}
+                label="Referral program enabled"
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    referrals: { ...current.referrals, enabled: value },
+                  }))
+                }
+              />
+              <ToggleRow
+                checked={draft.referrals.promoEnabled}
+                disabled={!canWrite}
+                label="Promo code entry enabled"
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    referrals: { ...current.referrals, promoEnabled: value },
+                  }))
+                }
+              />
+              <NumberField
+                id="max-redemptions"
+                label="Max promo redemptions per user"
+                disabled={!canWrite}
+                value={draft.referrals.maxRedemptionsPerUser}
+                onChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    referrals: {
+                      ...current.referrals,
+                      maxRedemptionsPerUser: value,
+                    },
+                  }))
+                }
+              />
+              <div className="md:col-span-2">
+                <TextField
+                  id="support-email"
+                  label="Support email"
                   disabled={!canWrite}
-                  inputMode="numeric"
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      abuse: {
-                        ...current.abuse,
-                        hardRequestsPerMinute: Number(event.target.value || 0),
-                      },
-                    }))
-                  }
-                  value={draft.abuse.hardRequestsPerMinute}
-                />
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Shared-device threshold</span>
-                <input
-                  className="admin-input"
-                  disabled={!canWrite}
-                  inputMode="numeric"
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      abuse: {
-                        ...current.abuse,
-                        sharedAccountDeviceThreshold: Number(event.target.value || 0),
-                      },
-                    }))
-                  }
-                  value={draft.abuse.sharedAccountDeviceThreshold}
-                />
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Coupon abuse threshold</span>
-                <input
-                  className="admin-input"
-                  disabled={!canWrite}
-                  inputMode="numeric"
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      abuse: {
-                        ...current.abuse,
-                        couponAbuseThreshold: Number(event.target.value || 0),
-                      },
-                    }))
-                  }
-                  value={draft.abuse.couponAbuseThreshold}
-                />
-              </label>
-              <label className="flex items-center gap-3 rounded-xl border border-line px-3 py-2 text-sm text-ink">
-                <input
-                  checked={draft.referrals.enabled}
-                  disabled={!canWrite}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      referrals: {
-                        ...current.referrals,
-                        enabled: event.target.checked,
-                      },
-                    }))
-                  }
-                  type="checkbox"
-                />
-                <span>Referral program enabled</span>
-              </label>
-              <label className="flex items-center gap-3 rounded-xl border border-line px-3 py-2 text-sm text-ink">
-                <input
-                  checked={draft.referrals.promoEnabled}
-                  disabled={!canWrite}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      referrals: {
-                        ...current.referrals,
-                        promoEnabled: event.target.checked,
-                      },
-                    }))
-                  }
-                  type="checkbox"
-                />
-                <span>Promo code entry enabled</span>
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-ink">Max promo redemptions per user</span>
-                <input
-                  className="admin-input"
-                  disabled={!canWrite}
-                  inputMode="numeric"
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      referrals: {
-                        ...current.referrals,
-                        maxRedemptionsPerUser: Number(event.target.value || 0),
-                      },
-                    }))
-                  }
-                  value={draft.referrals.maxRedemptionsPerUser}
-                />
-              </label>
-              <label className="block md:col-span-2">
-                <span className="mb-2 block text-sm font-medium text-ink">Support email</span>
-                <input
-                  className="admin-input"
-                  disabled={!canWrite}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      support: {
-                        ...current.support,
-                        supportEmail: event.target.value,
-                      },
-                    }))
-                  }
                   value={draft.support.supportEmail}
+                  onChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      support: { ...current.support, supportEmail: value },
+                    }))
+                  }
                 />
-              </label>
-              <label className="block md:col-span-2">
-                <span className="mb-2 block text-sm font-medium text-ink">Content notice</span>
-                <textarea
-                  className="admin-textarea"
+              </div>
+              <div className="space-y-1.5 md:col-span-2">
+                <Label htmlFor="content-notice">Content notice</Label>
+                <Textarea
                   disabled={!canWrite}
+                  id="content-notice"
                   onChange={(event) =>
                     setDraft((current) => ({
                       ...current,
-                      legal: {
-                        ...current.legal,
-                        contentNotice: event.target.value,
-                      },
+                      legal: { ...current.legal, contentNotice: event.target.value },
                     }))
                   }
                   value={draft.legal.contentNotice}
                 />
-              </label>
+              </div>
             </div>
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
       </SectionCard>
 
       <SectionCard
-        title="Feature Flags"
+        title="Feature flags"
         description="Flags support global rollout, UID cohorts, role allowlists, or percentage-based experiments."
         actions={
           canWrite ? (
-            <button
-              className="admin-button-secondary"
+            <Button
               onClick={() =>
                 setFlags((current) => [
                   ...current,
@@ -673,103 +665,107 @@ export function SettingsEditor({
                     key: "",
                     enabled: false,
                     description: "",
-                    rollout: {
-                      strategy: "none",
-                      value: null,
-                    },
+                    rollout: { strategy: "none", value: null },
                     updatedAt: 0,
                     rolloutText: "",
                   },
                 ])
               }
               type="button"
+              variant="outline"
             >
+              <Plus className="mr-2 h-4 w-4" />
               Add flag
-            </button>
+            </Button>
           ) : null
         }
       >
-        <div className="space-y-4">
-          {flags.map((flag, index) => (
-            <div key={`${flag.key || "new"}-${index}`} className="rounded-2xl border border-line p-4">
-              <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-ink">Key</span>
-                  <input
-                    className="admin-input"
-                    disabled={!canWrite}
-                    onChange={(event) => updateFlag(index, { key: event.target.value })}
-                    placeholder="labs.smart-review"
-                    value={flag.key}
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-ink">Description</span>
-                  <input
-                    className="admin-input"
-                    disabled={!canWrite}
-                    onChange={(event) => updateFlag(index, { description: event.target.value })}
-                    value={flag.description}
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-ink">Strategy</span>
-                  <select
-                    className="admin-select"
-                    disabled={!canWrite}
-                    onChange={(event) =>
-                      updateFlag(index, {
-                        rollout: {
-                          ...flag.rollout,
-                          strategy: event.target.value as EditableFlag["rollout"]["strategy"],
-                        },
-                      })
-                    }
-                    value={flag.rollout.strategy}
-                  >
-                    <option value="all">all</option>
-                    <option value="none">none</option>
-                    <option value="roles">roles</option>
-                    <option value="cohort">cohort</option>
-                    <option value="percentage">percentage</option>
-                    <option value="uids">uids</option>
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-ink">Strategy value</span>
-                  <input
-                    className="admin-input"
-                    disabled={!canWrite}
-                    onChange={(event) => updateFlag(index, { rolloutText: event.target.value })}
-                    placeholder="support_admin, early-april"
-                    value={flag.rolloutText}
-                  />
-                </label>
-                <div className="flex items-end gap-3">
-                  <label className="flex items-center gap-2 text-sm text-ink">
-                    <input
-                      checked={flag.enabled}
+        <div className="space-y-3">
+          {flags.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No feature flags configured.</p>
+          ) : (
+            flags.map((flag, index) => (
+              <Card key={`${flag.key || "new"}-${index}`}>
+                <CardContent className="p-4">
+                  <div className="grid gap-3 lg:grid-cols-[1.2fr_1.4fr_1fr_1fr_auto]">
+                    <TextField
+                      id={`flag-key-${index}`}
+                      label="Key"
                       disabled={!canWrite}
-                      onChange={(event) => updateFlag(index, { enabled: event.target.checked })}
-                      type="checkbox"
+                      value={flag.key}
+                      onChange={(value) => updateFlag(index, { key: value })}
                     />
-                    Enabled
-                  </label>
-                  <button
-                    className="admin-button"
-                    disabled={!canWrite || isPending || reason.trim().length < 3 || !flag.key}
-                    onClick={() => saveFlag(flag)}
-                    type="button"
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+                    <TextField
+                      id={`flag-desc-${index}`}
+                      label="Description"
+                      disabled={!canWrite}
+                      value={flag.description}
+                      onChange={(value) => updateFlag(index, { description: value })}
+                    />
+                    <div className="space-y-1.5">
+                      <Label>Strategy</Label>
+                      <Select
+                        disabled={!canWrite}
+                        onValueChange={(value) =>
+                          updateFlag(index, {
+                            rollout: {
+                              ...flag.rollout,
+                              strategy: value as EditableFlag["rollout"]["strategy"],
+                            },
+                          })
+                        }
+                        value={flag.rollout.strategy}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">all</SelectItem>
+                          <SelectItem value="none">none</SelectItem>
+                          <SelectItem value="roles">roles</SelectItem>
+                          <SelectItem value="cohort">cohort</SelectItem>
+                          <SelectItem value="percentage">percentage</SelectItem>
+                          <SelectItem value="uids">uids</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <TextField
+                      id={`flag-value-${index}`}
+                      label="Strategy value"
+                      disabled={!canWrite}
+                      value={flag.rolloutText}
+                      onChange={(value) => updateFlag(index, { rolloutText: value })}
+                    />
+                    <div className="flex items-end gap-3">
+                      <div className="flex flex-col items-center gap-1.5">
+                        <Label className="text-xs">Enabled</Label>
+                        <Switch
+                          checked={flag.enabled}
+                          disabled={!canWrite}
+                          onCheckedChange={(value) => updateFlag(index, { enabled: value })}
+                        />
+                      </div>
+                      <Button
+                        disabled={
+                          !canWrite ||
+                          isPending ||
+                          reason.trim().length < 3 ||
+                          !flag.key
+                        }
+                        onClick={() => saveFlag(flag)}
+                        size="sm"
+                        type="button"
+                      >
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </SectionCard>
     </div>
   );
 }
-

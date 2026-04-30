@@ -8,19 +8,37 @@ import {
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
-let adminApp: App | null = null;
-let adminAuth: Auth | null = null;
-let adminDb: Firestore | null = null;
-let triedInit = false;
+// HMR-safe singleton: dev re-evaluates this module on file changes, and
+// Firestore.settings() may only be called once per Firestore instance, so we
+// stash the cached references on globalThis.
+type AdminCache = {
+  app: App | null;
+  auth: Auth | null;
+  db: Firestore | null;
+  triedInit: boolean;
+};
+
+const globalScope = globalThis as typeof globalThis & {
+  __finalsprepAdminCache?: AdminCache;
+};
+
+const cache: AdminCache =
+  globalScope.__finalsprepAdminCache ??
+  (globalScope.__finalsprepAdminCache = {
+    app: null,
+    auth: null,
+    db: null,
+    triedInit: false,
+  });
 
 export function isAdminConfigured(): boolean {
   return Boolean(process.env.FIREBASE_ADMIN_KEY_B64);
 }
 
 function ensureAdminApp(): App | null {
-  if (adminApp) return adminApp;
-  if (triedInit) return null;
-  triedInit = true;
+  if (cache.app) return cache.app;
+  if (cache.triedInit) return null;
+  cache.triedInit = true;
 
   const b64 = process.env.FIREBASE_ADMIN_KEY_B64;
   if (!b64) return null;
@@ -28,7 +46,7 @@ function ensureAdminApp(): App | null {
   try {
     const json = Buffer.from(b64, "base64").toString("utf8");
     const serviceAccount = JSON.parse(json) as ServiceAccount;
-    adminApp =
+    cache.app =
       getApps().find((app) => app.name === "finalsprep-admin-console") ??
       initializeApp(
         {
@@ -37,7 +55,7 @@ function ensureAdminApp(): App | null {
         },
         "finalsprep-admin-console"
       );
-    return adminApp;
+    return cache.app;
   } catch (error) {
     console.error("[admin] failed to initialize Firebase Admin", error);
     return null;
@@ -45,18 +63,30 @@ function ensureAdminApp(): App | null {
 }
 
 export function getAdminAuth(): Auth | null {
-  if (adminAuth) return adminAuth;
+  if (cache.auth) return cache.auth;
   const app = ensureAdminApp();
   if (!app) return null;
-  adminAuth = getAuth(app);
-  return adminAuth;
+  cache.auth = getAuth(app);
+  return cache.auth;
 }
 
 export function getAdminDb(): Firestore | null {
-  if (adminDb) return adminDb;
+  if (cache.db) return cache.db;
   const app = ensureAdminApp();
   if (!app) return null;
-  adminDb = getFirestore(app);
-  adminDb.settings({ ignoreUndefinedProperties: true });
-  return adminDb;
+  const db = getFirestore(app);
+  try {
+    db.settings({ ignoreUndefinedProperties: true });
+  } catch (error) {
+    // Settings can only be set once per Firestore instance — under HMR the
+    // instance can survive past module re-evaluation. Safe to ignore.
+    if (
+      !(error instanceof Error) ||
+      !error.message.includes("settings() once")
+    ) {
+      throw error;
+    }
+  }
+  cache.db = db;
+  return cache.db;
 }

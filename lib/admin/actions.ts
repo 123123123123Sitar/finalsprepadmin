@@ -5,7 +5,6 @@ import { writeAuditLog } from "@/lib/admin/audit";
 import { requireDb, collections } from "@/lib/admin/firestore";
 import { normalizePlanTier } from "@/lib/admin/plans";
 import type { AdminContext } from "@/lib/admin/types";
-import { syncStripeSubscriptionIntoFirestore } from "@/lib/admin/queries/billing";
 import { hasPermission } from "@/lib/admin/permissions";
 import { refreshContentHealthSnapshot } from "@/lib/admin/content-health";
 
@@ -59,12 +58,6 @@ const setEntitlementsSchema = z.object({
   unlockedTools: z.array(z.string()).optional(),
 });
 
-const syncStripeSchema = z.object({
-  action: z.literal("sync_stripe"),
-  uid: z.string().min(1),
-  reason: z.string().min(3),
-});
-
 const setQuotaSchema = z.object({
   action: z.literal("set_quota_override"),
   uid: z.string().min(1),
@@ -82,7 +75,6 @@ const setRolesSchema = z.object({
       "readonly_admin",
       "support_admin",
       "content_admin",
-      "billing_admin",
       "super_admin",
     ])
   ),
@@ -101,7 +93,6 @@ export const adminMutationSchema = z.discriminatedUnion("action", [
   addNoteSchema,
   setFlagsSchema,
   setEntitlementsSchema,
-  syncStripeSchema,
   setQuotaSchema,
   setRolesSchema,
   resetUsageSchema,
@@ -124,8 +115,6 @@ export async function runAdminMutation(
       return setUserFlags(actor, input);
     case "set_entitlements":
       return setUserEntitlements(actor, input);
-    case "sync_stripe":
-      return forceStripeSync(actor, input);
     case "set_quota_override":
       return setQuotaOverride(actor, input);
     case "set_admin_roles":
@@ -146,8 +135,7 @@ function assertCanRunMutation(
       if (hasPermission(actor.roles, "support.write")) return;
       break;
     case "set_plan":
-    case "sync_stripe":
-      if (hasPermission(actor.roles, "billing.write")) return;
+      if (hasPermission(actor.roles, "users.write")) return;
       break;
     case "adjust_tokens":
     case "set_quota_override":
@@ -368,32 +356,6 @@ async function setUserEntitlements(
     after: payload,
   });
   return payload;
-}
-
-async function forceStripeSync(
-  actor: AdminContext,
-  input: z.infer<typeof syncStripeSchema>
-) {
-  const before = requireDb().doc(`users/${input.uid}/profile/billing`);
-  const beforeData = (await before.get()).data() || null;
-  const after = await syncStripeSubscriptionIntoFirestore(input.uid);
-  await requireDb().collection(collections.adminUsers).doc(input.uid).set(
-    {
-      lastStripeSyncAt: Date.now(),
-      updatedAt: Date.now(),
-    },
-    { merge: true }
-  );
-  await writeAuditLog(actor, {
-    action: "billing.sync_stripe",
-    targetType: "billing",
-    targetId: input.uid,
-    reason: input.reason,
-    status: "success",
-    before: beforeData,
-    after,
-  });
-  return after;
 }
 
 async function setQuotaOverride(

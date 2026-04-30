@@ -16,7 +16,8 @@ export async function GET(
       `User: ${detail.auth.displayName || "Unknown"} <${detail.auth.email || "no-email"}>`,
       `UID: ${detail.auth.uid}`,
       `Plan: ${detail.billing.plan} (${detail.billing.status || "inactive"})`,
-      `Token balance: ${detail.tokenBank.balance}`,
+      `Daily tokens: ${detail.dailyTokens.remaining} / ${detail.dailyTokens.cap} remaining (${detail.dailyTokens.used} used)`,
+      `Bonus tokens: ${detail.tokenBank.balance}`,
       `AI usage (30d): ${detail.aiUsage.totalRequests} requests, ${detail.aiUsage.totalTokens} tokens`,
       `Flags: ${Object.entries(detail.overlay.flags || {})
         .filter(([, value]) => Boolean(value))
@@ -26,9 +27,10 @@ export async function GET(
     ].join("\n");
     return NextResponse.json({ summary });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to build support summary" },
-      { status: error instanceof Error && error.message === "FORBIDDEN" ? 403 : 401 }
-    );
+    const message =
+      error instanceof Error ? error.message : "Failed to build support summary";
+    const status =
+      message === "FORBIDDEN" ? 403 : message === "UNAUTHENTICATED" ? 401 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

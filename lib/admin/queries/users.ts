@@ -74,9 +74,6 @@ async function getBillingProfiles(uids: string[]) {
       plan: normalizePlanTier(raw.plan),
       billingInterval: normalizeBillingInterval(raw.billingInterval),
       status: typeof raw.status === "string" ? raw.status : "inactive",
-      stripeCustomerId: raw.stripeCustomerId,
-      stripeSubscriptionId: raw.stripeSubscriptionId,
-      stripePriceId: raw.stripePriceId,
       currentPeriodEnd: raw.currentPeriodEnd,
       updatedAt: raw.updatedAt,
       cancelAt: raw.cancelAt ?? null,
@@ -285,8 +282,6 @@ function toListItem(
     providerIds: user.providerData.map((provider) => provider.providerId),
     plan,
     subscriptionStatus: billing?.status ?? "inactive",
-    stripeCustomerId: billing?.stripeCustomerId,
-    stripeSubscriptionId: billing?.stripeSubscriptionId,
     tokenBalance: tokenBank?.balance ?? 0,
     dailyTokens:
       dailyTokens ?? {

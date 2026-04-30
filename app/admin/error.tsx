@@ -1,5 +1,9 @@
 "use client";
 
+import { AlertTriangle, RefreshCw } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+
 export default function AdminError({
   error,
   reset,
@@ -8,16 +12,25 @@ export default function AdminError({
   reset: () => void;
 }) {
   return (
-    <div className="admin-card max-w-3xl p-8">
-      <p className="text-xs font-medium uppercase tracking-[0.24em] text-danger">Admin Error</p>
-      <h1 className="mt-3 font-display text-4xl text-ink">The admin page failed to load.</h1>
-      <p className="mt-4 text-sm leading-6 text-body">
-        {error.message || "Unexpected operator console failure."}
-      </p>
-      <button className="admin-button mt-6" onClick={reset} type="button">
-        Retry
-      </button>
+    <div className="mx-auto max-w-3xl py-8">
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle className="font-display text-lg">
+          The admin page failed to load.
+        </AlertTitle>
+        <AlertDescription className="mt-2 space-y-4">
+          <p className="text-sm leading-6">
+            {error.message || "Unexpected operator console failure."}
+          </p>
+          {error.digest ? (
+            <p className="text-xs text-destructive/80">Digest: {error.digest}</p>
+          ) : null}
+          <Button onClick={reset} variant="outline">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Retry
+          </Button>
+        </AlertDescription>
+      </Alert>
     </div>
   );
 }
-

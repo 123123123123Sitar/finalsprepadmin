@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans, Space_Grotesk } from "next/font/google";
 import { AdminAuthProvider } from "@/components/auth/AdminAuthProvider";
+import { Toaster } from "@/components/ui/sonner";
 
 const bodyFont = IBM_Plex_Sans({
   subsets: ["latin"],
@@ -37,6 +38,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${bodyFont.variable} ${displayFont.variable} ${monoFont.variable}`}>
         <AdminAuthProvider>{children}</AdminAuthProvider>
+        <Toaster richColors closeButton position="top-right" />
       </body>
     </html>
   );
